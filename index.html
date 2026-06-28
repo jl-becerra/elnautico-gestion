@@ -989,24 +989,45 @@ function askToggleSlotEl(btn,adding){
 
 function askRemoveWEl(el){
   const k=el.dataset.k;const id=parseInt(el.dataset.id);const nombre=el.dataset.name||'';
-  showDlg('Eliminar trabajador','Eliminar a '+nombre+' de este día? Seguirá visible tachado y podrás restaurarlo.',true,()=>{
+  // Custom two-option dialog
+  document.getElementById('dlg-title').textContent='Quitar del día';
+  document.getElementById('dlg-msg').textContent='¿Qué quieres hacer con '+nombre+' en este día?';
+  const okBtn=document.getElementById('dlg-ok');
+  okBtn.textContent='Eliminar';
+  okBtn.className='dialog-ok danger';
+  // Add baja button if not already there
+  let bajaBtn=document.getElementById('dlg-baja');
+  if(!bajaBtn){
+    bajaBtn=document.createElement('button');
+    bajaBtn.id='dlg-baja';
+    bajaBtn.className='dialog-cancel';
+    bajaBtn.style.cssText='background:#e8e8ed;color:#555;border:0.5px solid #ccc';
+    document.querySelector('.dialog-btns').insertBefore(bajaBtn,okBtn);
+  }
+  bajaBtn.textContent='Baja médica';
+  bajaBtn.onclick=()=>{
+    document.getElementById('dlg').style.display='none';
+    dlgCb=null;
     const a=(dayData[k]||[]).find(x=>x.id===id);
-    if(a){
-      a.deleted=true;
-      saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,'eliminado');
-    }
+    if(a){a.deleted=true;a.baja=true;saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,'baja');}
     renderDayView();
-  });
+  };
+  dlgCb=()=>{
+    const a=(dayData[k]||[]).find(x=>x.id===id);
+    if(a){a.deleted=true;a.baja=false;saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,'eliminado');}
+    renderDayView();
+  };
+  document.getElementById('dlg').style.display='flex';
 }
 function restoreWEl(el){
   const k=el.dataset.k;const id=parseInt(el.dataset.id);
   const p=STAFF.find(x=>x.id===id);
-  showDlg('Restaurar trabajador','Restaurar a '+(p?p.nombre+' '+p.ape:'')+' en este día?',false,()=>{
-    const a=(dayData[k]||[]).find(x=>x.id===id);
-    if(a){
-      a.deleted=false;
-      saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':'activo');
-    }
+  const a=(dayData[k]||[]).find(x=>x.id===id);
+  const isBaja=a&&a.baja;
+  showDlg(isBaja?'Anular baja':'Restaurar trabajador',
+    (isBaja?'¿Anular la baja médica de ':'¿Restaurar a ')+(p?p.nombre+' '+p.ape:'')+' en este día?',
+    false,()=>{
+    if(a){a.deleted=false;a.baja=false;saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':'activo');}
     renderDayView();
   });
 }
