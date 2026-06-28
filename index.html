@@ -816,7 +816,9 @@ function renderDayView(){
         const isHourStart=(si%2===0);
         const borderClass=isHourStart?'td-half hour-start':'td-half';
         if(a.deleted){
-          if(inOrig) return'<td class="'+borderClass+'" style="background:#f0f0f0"><span class="cell-fill" style="display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:#d00">C</span></td>';
+          const letter=a.baja?'B':'C';
+          const letterColor=a.baja?'#888':'#d00';
+          if(inOrig) return'<td class="'+borderClass+'" style="background:#f0f0f0"><span class="cell-fill" style="display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:'+letterColor+'">'+letter+'</span></td>';
           return'<td class="'+borderClass+'"></td>';
         }
         const t1=slotToTime(slot);const t2=nextSlotTime(slot);
