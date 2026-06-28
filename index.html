@@ -573,7 +573,9 @@ async function buildDay(date){
   mods.forEach(mod=>{
     const existing = workers.find(w=>w.db_id===mod.personal_id);
     if(mod.estado==='eliminado'){
-      if(existing) existing.deleted=true;
+      if(existing){existing.deleted=true;existing.baja=false;}
+    } else if(mod.estado==='baja'){
+      if(existing){existing.deleted=true;existing.baja=true;}
     } else if(mod.estado==='añadido'){
       // Only add if not already in list
       if(!existing){
@@ -620,7 +622,11 @@ function showDlg(title,msg,danger,cb){
   document.getElementById('dlg').style.display='flex';
 }
 function dlgConfirm(){document.getElementById('dlg').style.display='none';if(dlgCb)dlgCb();dlgCb=null;}
-function dlgCancel(){document.getElementById('dlg').style.display='none';dlgCb=null;}
+function dlgCancel(){
+  document.getElementById('dlg').style.display='none';
+  dlgCb=null;
+  const pb=document.getElementById('dlg-baja');if(pb)pb.remove();
+}
 
 // ── NAVEGACIÓN ──
 function showPage(id){
