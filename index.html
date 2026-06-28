@@ -639,22 +639,30 @@ function showPage(id){
   document.getElementById('month-nav').style.display=(id==='cal'&&!selDay)?'flex':'none';
   if(id==='admin')renderAdminList();
 }
-function changeMonth(d){
+async function changeMonth(d){
   const nm=new Date(curMonth);nm.setMonth(nm.getMonth()+d);
-  if(nm.getFullYear()===2026&&(nm.getMonth()===6||nm.getMonth()===7)){curMonth=nm;renderCal();}
+  if(nm.getFullYear()===2026&&(nm.getMonth()===6||nm.getMonth()===7)){curMonth=nm;await renderCal();}
 }
 
 // ── CALENDARIO ──
-function renderCal(){
+async function renderCal(){
   document.getElementById('month-label').textContent=`${MONTHS[curMonth.getMonth()]} ${curMonth.getFullYear()}`;
-  const g=document.getElementById('cal-grid');g.innerHTML='';
+  const g=document.getElementById('cal-grid');
+  g.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text2);font-size:13px">Cargando...</div>';
   const first=new Date(curMonth.getFullYear(),curMonth.getMonth(),1);
   const dim=new Date(curMonth.getFullYear(),curMonth.getMonth()+1,0).getDate();
+
+  // Preload all days in parallel
+  const dates=[];
+  for(let d=1;d<=dim;d++) dates.push(new Date(curMonth.getFullYear(),curMonth.getMonth(),d));
+  await Promise.all(dates.map(date=>buildDay(date)));
+
+  // Now render with correct counts
+  g.innerHTML='';
   for(let i=0;i<dowL(first);i++){const e=document.createElement('div');e.className='cal-cell other';g.appendChild(e);}
-  for(let d=1;d<=dim;d++){
-    const date=new Date(curMonth.getFullYear(),curMonth.getMonth(),d);
-    buildDay(date);
+  for(const date of dates){
     const k=fmtD(date);
+    const d=date.getDate();
     const cnt=(dayData[k]||[]).filter(a=>!a.deleted).length;
     const isWE=date.getDay()===0||date.getDay()===6;
     const isSel=selDay&&fmtD(selDay)===k;
@@ -1176,7 +1184,7 @@ async function init() {
   // Show loading
   document.getElementById('cal-grid').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text2);font-size:14px">Cargando personal...</div>';
   await loadStaff();
-  renderCal();
+  await renderCal();
 }
 init();
 
