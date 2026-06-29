@@ -560,10 +560,12 @@ async function buildDay(date){
 
   // Base workers from STAFF
   const base=STAFF.filter(p=>isAvail(p,date)).map(p=>{
-    const pts=(p.hor||'').split('-');
-    const entrada=pts[0]||'';
-    const salida=pts[1]||'';
-    return{id:p.id,db_id:p.db_id,entrada,salida,slots:activeSlots(entrada,salida),added:false,deleted:false};
+    // Use full hor string for split shifts (e.g. "12:00/19:00-17:00/22:00")
+    const hor=p.hor||'';
+    const dashIdx=hor.indexOf('-');
+    const entrada=dashIdx>=0?hor.substring(0,dashIdx):'';
+    const salida=dashIdx>=0?hor.substring(dashIdx+1):'';
+    return{id:p.id,db_id:p.db_id,entrada,salida,slots:activeSlots(hor),added:false,deleted:false};
   });
 
   // Store originals (unmodified) — slots must be a real Set
