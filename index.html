@@ -508,7 +508,16 @@ function nextSlotTime(s){return slotToTime((s+1));}
 // Conjunto de slots activos — soporta turnos partidos con separador "/"
 function activeSlots(entrada,salida){
   const s=new Set();
-  // entrada puede ser "12:00/19:00", salida "17:00/22:00"
+  if(!entrada)return s;
+  // If called with single hor string like "12:00-20:00" or "12:00/19:00-17:00/22:00"
+  if(salida===undefined){
+    const hor=entrada;
+    const dashIdx=hor.lastIndexOf('-');
+    if(dashIdx<0)return s;
+    entrada=hor.substring(0,dashIdx);
+    salida=hor.substring(dashIdx+1);
+  }
+  if(!salida)return s;
   const entradas=entrada.split('/');
   const salidas=salida.split('/');
   const n=Math.min(entradas.length,salidas.length);
