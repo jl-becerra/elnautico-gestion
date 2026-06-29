@@ -580,12 +580,23 @@ async function buildDay(date){
       // Only add if not already in list
       if(!existing){
         const p=STAFF.find(x=>x.db_id===mod.personal_id);
-        if(p) workers.push({
-          id:p.id, db_id:p.db_id,
-          entrada:mod.entrada, salida:mod.salida,
-          slots:new Set(mod.slots||[]),
-          added:true, deleted:false
-        });
+        if(p){
+          // origSlots = base horario slots (before any manual changes)
+          const baseSlots=activeSlots(p.hor);
+          const curSlots=new Set((mod.slots||[]).map(Number));
+          workers.push({
+            id:p.id, db_id:p.db_id,
+            entrada:mod.entrada, salida:mod.salida,
+            slots:curSlots,
+            origSlots:baseSlots,  // base horario as original reference
+            added:true, deleted:false
+          });
+        }
+      } else if(existing){
+        // Worker already in list (shouldn't happen) — update slots
+        existing.slots=new Set((mod.slots||[]).map(Number));
+        existing.added=true;
+        if(!existing.origSlots) existing.origSlots=activeSlots(STAFF.find(x=>x.db_id===mod.personal_id)?.hor||'');
       }
     } else if(existing){
       // Modified horario
@@ -599,11 +610,12 @@ async function buildDay(date){
 }
 
 function origSlots(k,id){
+  // First check dayOrig (base workers)
   const o=(dayOrig[k]||[]).find(x=>x.id===id);
   if(o) return new Set(o.slots);
-  // For added workers, check origSlots stored at add time
+  // For added workers, use origSlots stored on the worker
   const a=(dayData[k]||[]).find(x=>x.id===id);
-  if(a&&a.origSlots) return new Set(a.origSlots);
+  if(a&&a.origSlots) return a.origSlots instanceof Set ? a.origSlots : new Set(a.origSlots);
   return new Set();
 }
 
@@ -1059,10 +1071,11 @@ function askAddWorker(k){
     const entrada=pts[0]||'';const salida=pts[1]||'';
     const slts=activeSlots(entrada,salida);
     if(!dayData[k])dayData[k]=[];
-    dayData[k].push({id,db_id:p.db_id,entrada,salida,slots:slts,added:true,deleted:false,origSlots:new Set(slts)});
-    // Also store in dayOrig so C markers work for subsequent changes
+    // Store origSlots as Set for comparison; also add to dayOrig
+    const origSlotsSet=new Set(slts);
+    dayData[k].push({id,db_id:p.db_id,entrada,salida,slots:slts,added:true,deleted:false,origSlots:origSlotsSet});
     if(!dayOrig[k]) dayOrig[k]=[];
-    dayOrig[k].push({id,db_id:p.db_id,entrada,salida,slots:new Set(slts),added:true,deleted:false});
+    dayOrig[k].push({id,db_id:p.db_id,entrada,salida,slots:origSlotsSet,added:true,deleted:false});
     saveDayAssignment(k,p.db_id,entrada,salida,slts,'añadido');
     showAdd=false;renderDayView();
   });
