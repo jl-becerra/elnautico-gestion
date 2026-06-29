@@ -1053,8 +1053,10 @@ function askAddWorker(k){
     if((dayData[k]||[]).find(x=>x.id===id))return;
     const pts=(p.hor||'').split('-');
     const entrada=pts[0]||'';const salida=pts[1]||'';
+    const slts=activeSlots(entrada,salida);
     if(!dayData[k])dayData[k]=[];
-    dayData[k].push({id,entrada,salida,slots:activeSlots(entrada,salida),added:true,deleted:false});
+    dayData[k].push({id,db_id:p.db_id,entrada,salida,slots:slts,added:true,deleted:false});
+    saveDayAssignment(k,p.db_id,entrada,salida,slts,'añadido');
     showAdd=false;renderDayView();
   });
 }
