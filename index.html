@@ -600,7 +600,11 @@ async function buildDay(date){
 
 function origSlots(k,id){
   const o=(dayOrig[k]||[]).find(x=>x.id===id);
-  return o?new Set(o.slots):new Set();
+  if(o) return new Set(o.slots);
+  // For added workers, check origSlots stored at add time
+  const a=(dayData[k]||[]).find(x=>x.id===id);
+  if(a&&a.origSlots) return new Set(a.origSlots);
+  return new Set();
 }
 
 function sortedWorkers(assigned){
@@ -831,12 +835,12 @@ function renderDayView(){
         }
         const t1=slotToTime(slot);const t2=nextSlotTime(slot);
         if(inCur){
-          const cLetter=(a.added||(inCur&&!inOrig))?'C':'';
+          const cLetter=(inCur&&!inOrig)?'C':'';
           const cStyle=cLetter?'display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:#fff':'';
           return'<td class="'+borderClass+'"><span class="cell-fill wc-'+c+'" style="'+cStyle+'">'+cLetter+'</span>'
             +'<button class="half-btn minus" data-k="'+k+'" data-id="'+a.id+'" data-slot="'+slot+'" data-t1="'+t1+'" data-t2="'+t2+'" onclick="askToggleSlotEl(this,false)">−</button></td>';
         } else {
-          const cLetter=(!a.added&&inOrig&&!inCur)?'C':'';
+          const cLetter=(inOrig&&!inCur)?'C':'';
           if(cLetter){
             return'<td class="'+borderClass+'" style="background:#fff"><span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:8px;font-weight:800;color:#d00">C</span>'
               +'<button class="half-btn plus" data-k="'+k+'" data-id="'+a.id+'" data-slot="'+slot+'" data-t1="'+t1+'" data-t2="'+t2+'" onclick="askToggleSlotEl(this,true)">+</button></td>';
@@ -993,7 +997,7 @@ function askToggleSlotEl(btn,adding){
     if(adding)a.slots.add(slot);else a.slots.delete(slot);
     const hor=slotsToHorario(a.slots);
     a.entrada=hor.entrada;a.salida=hor.salida;
-    saveDayAssignment(k,a.db_id||a.id,a.entrada,a.salida,a.slots,a.estado||'activo');
+    saveDayAssignment(k,a.db_id||a.id,a.entrada,a.salida,a.slots,a.added?'añadido':'activo');
     renderDayView();
   });
 }
@@ -1055,7 +1059,10 @@ function askAddWorker(k){
     const entrada=pts[0]||'';const salida=pts[1]||'';
     const slts=activeSlots(entrada,salida);
     if(!dayData[k])dayData[k]=[];
-    dayData[k].push({id,db_id:p.db_id,entrada,salida,slots:slts,added:true,deleted:false});
+    dayData[k].push({id,db_id:p.db_id,entrada,salida,slots:slts,added:true,deleted:false,origSlots:new Set(slts)});
+    // Also store in dayOrig so C markers work for subsequent changes
+    if(!dayOrig[k]) dayOrig[k]=[];
+    dayOrig[k].push({id,db_id:p.db_id,entrada,salida,slots:new Set(slts),added:true,deleted:false});
     saveDayAssignment(k,p.db_id,entrada,salida,slts,'añadido');
     showAdd=false;renderDayView();
   });
