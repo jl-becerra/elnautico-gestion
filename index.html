@@ -1866,6 +1866,231 @@ function confirmDeleteWorker(idx){
 }
 
 
+
+// ── HELPERS PARA MI HORARIO ─────────────────────────────────────────
+function parseShifts(hor){
+  if(!hor)return[];
+  const dashIdx=hor.lastIndexOf('-');
+  if(dashIdx<0)return[];
+  const ents=hor.substring(0,dashIdx).split('/');
+  const sals=hor.substring(dashIdx+1).split('/');
+  return ents.map((e,i)=>({entrada:e.trim(),salida:(sals[i]||'').trim()})).filter(s=>s.entrada&&s.salida);
+}
+function calcH(entrada,salida){
+  if(!entrada||!salida)return 0;
+  const h1=parseInt(entrada),h2=parseInt(salida);
+  if(isNaN(h1)||isNaN(h2))return 0;
+  return h2<=h1?h2+24-h1:h2-h1;
+}
+function isEvening(hor){
+  if(!hor)return false;
+  const h=parseInt((hor||'0').split('/')[0]);
+  return h>=17||h<8;
+}
+
+// ── MI HORARIO ───────────────────────────────────────────────────────
+let mihUser=null,mihMonth=6,mihMods={},mihSelDay=null;
+
+function mihInit(){
+  const sel=document.getElementById('mih-sel');
+  if(!sel||sel.options.length>0)return;
+  const sorted=[...STAFF].sort((a,b)=>a.ape.localeCompare(b.ape,'es'));
+  sel.innerHTML=sorted.map(p=>'<option value="'+p.id+'">'+p.ape+', '+p.nombre+'</option>').join('');
+  mihUser=sorted[0];
+  mihLoadMonth();
+}
+
+function mihSelectWorker(){
+  const id=parseInt(document.getElementById('mih-sel').value);
+  mihUser=STAFF.find(x=>x.id===id);
+  mihSelDay=null;
+  document.getElementById('mih-day-detail').innerHTML='';
+  mihLoadMonth();
+}
+
+function mihSetMonth(m,btn){
+  mihMonth=m;mihSelDay=null;
+  document.querySelectorAll('#page-mih .month-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('mih-day-detail').innerHTML='';
+  mihLoadMonth();
+}
+
+async function mihLoadMonth(){
+  const p=mihUser;if(!p)return;
+  const year=2026,dim=new Date(year,mihMonth+1,0).getDate();
+  const from=fmtD(new Date(year,mihMonth,1));
+  const to=fmtD(new Date(year,mihMonth,dim));
+  document.getElementById('mih-cal').innerHTML='<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">Cargando...</div>';
+  mihMods={};
+  try{
+    const rows=await supa.get('horarios_dia','fecha=gte.'+from+'&fecha=lte.'+to+'&personal_id=eq.'+p.db_id);
+    rows.forEach(r=>{mihMods[new Date(r.fecha+'T00:00:00').getDate()]=r;});
+  }catch(e){console.error(e);}
+  // Stats
+  let workCount=0,totalH=0;
+  for(let d=1;d<=dim;d++){
+    const date=new Date(year,mihMonth,d);
+    const mod=mihMods[d];
+    const wasAvail=isAvail(p,date);
+    const isElim=mod&&mod.estado==='eliminado';
+    const isBaja=mod&&mod.estado==='baja';
+    const isVac=mod&&mod.estado==='vacaciones';
+    const isAdded=mod&&mod.estado==='añadido';
+    const works=(wasAvail&&!isElim&&!isBaja)||isAdded||isVac;
+    if(works){
+      workCount++;
+      const hor=mod&&mod.slots&&mod.slots.length?(()=>{const s=slotsToHorario(new Set(mod.slots.map(Number)));return s.entrada+'-'+s.salida;})():p.hor;
+      totalH+=calcHFromSlots(activeSlots(hor||''));
+    }
+  }
+  document.getElementById('mih-stats').innerHTML=
+    '<div class="stat-c"><div class="sv">'+workCount+'</div><div class="sl">Días</div></div>'+
+    '<div class="stat-c"><div class="sv">'+totalH+'</div><div class="sl">Horas</div></div>'+
+    '<div class="stat-c"><div class="sv">'+(isEvening(p.hor)?'Tarde':'Día')+'</div><div class="sl">Turno</div></div>';
+  mihRenderCal();
+}
+
+function mihRenderCal(){
+  const p=mihUser;if(!p)return;
+  const year=2026,dim=new Date(year,mihMonth+1,0).getDate();
+  const first=new Date(year,mihMonth,1);
+  const startDow=first.getDay()===0?6:first.getDay()-1;
+  const color=BC[p.id%26];
+  const selD=mihSelDay&&mihSelDay.getMonth()===mihMonth?mihSelDay.getDate():null;
+  let html='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">';
+  ['L','M','X','J','V','S','D'].forEach((d,i)=>{
+    html+='<div style="text-align:center;font-size:11px;font-weight:600;color:'+(i>=5?'var(--accent)':'var(--text2)')+';padding:4px 0">'+d+'</div>';
+  });
+  html+='</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:14px">';
+  for(let i=0;i<startDow;i++) html+='<div></div>';
+  for(let d=1;d<=dim;d++){
+    const date=new Date(year,mihMonth,d);
+    const mod=mihMods[d];
+    const wasAvail=isAvail(p,date);
+    const isElim=mod&&mod.estado==='eliminado';
+    const isBaja=mod&&mod.estado==='baja';
+    const isVac=mod&&mod.estado==='vacaciones';
+    const isAdded=mod&&mod.estado==='añadido';
+    const hasChange=!!(mod&&mod.estado!=='activo');
+    const works=(wasAvail&&!isElim&&!isBaja)||isAdded||isVac;
+    const isWE=date.getDay()===0||date.getDay()===6;
+    const isSel=selD===d;
+    let bg,numColor,dot='',extra='';
+    if(isSel){bg=color;numColor='#fff';}
+    else if(works){
+      bg=color+'22';numColor=isWE?'var(--accent)':'var(--text)';
+      const dotColor=hasChange?'#d42020':'#18a050';
+      dot='<div style="width:6px;height:6px;border-radius:50%;background:'+dotColor+';margin:2px auto 0"></div>';
+    } else if(isBaja){
+      bg='var(--bg2)';numColor=isWE?'var(--accent)':'var(--text2)';
+      dot='<div style="width:6px;height:6px;border-radius:50%;background:#d42020;margin:2px auto 0"></div>';
+      extra='<svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="5" y1="5" x2="95" y2="95" stroke="#d42020" stroke-width="5" stroke-linecap="round"/><line x1="95" y1="5" x2="5" y2="95" stroke="#d42020" stroke-width="5" stroke-linecap="round"/></svg>';
+    } else {bg='var(--bg2)';numColor=isWE?'var(--accent)':'var(--text2)';}
+    const border=works&&!isSel?'0.5px solid '+color+'55':'0.5px solid var(--border)';
+    html+='<div onclick="mihSelectDay(new Date('+year+','+mihMonth+','+d+'))" style="position:relative;border-radius:8px;background:'+bg+';border:'+border+';padding:6px 2px;text-align:center;cursor:pointer;min-height:46px;overflow:hidden">'
+      +extra+'<div style="font-size:14px;font-weight:'+(works||isSel?700:400)+';color:'+numColor+';position:relative;z-index:1">'+d+'</div>'+dot+'</div>';
+  }
+  html+='</div>';
+  document.getElementById('mih-cal').innerHTML=html;
+}
+
+async function mihSelectDay(date){
+  mihSelDay=date;mihRenderCal();
+  const p=mihUser;
+  const k=fmtD(date);
+  const label=DAYS_L[date.getDay()]+' '+date.getDate()+' de '+MONTHS_G[date.getMonth()];
+  const detail=document.getElementById('mih-day-detail');
+  detail.innerHTML='<div style="text-align:center;padding:16px;color:var(--text2);font-size:13px">Cargando...</div>';
+  let mods=[];
+  try{mods=await supa.get('horarios_dia','fecha=eq.'+k);}catch(e){}
+  const mod=mods.find(m=>m.personal_id===p.db_id);
+  const wasAvail=isAvail(p,date);
+  const estado=mod?mod.estado:'base';
+  const isElim=estado==='eliminado';
+  const isBaja=estado==='baja';
+  const isVac=estado==='vacaciones';
+  const isAdded=estado==='añadido';
+  const works=(wasAvail&&!isElim&&!isBaja)||isAdded||isVac;
+  let bodyHtml='';
+  if(isBaja){
+    bodyHtml='<div style="text-align:center;padding:16px"><div style="font-size:28px">🏥</div><div style="font-weight:700;color:#888">Baja médica</div></div>';
+  } else if(isVac){
+    bodyHtml='<div style="text-align:center;padding:16px"><div style="font-size:28px">🏖️</div><div style="font-weight:700;color:#18a050">Vacaciones</div></div>';
+  } else if(isElim||(!works)){
+    bodyHtml='<div style="text-align:center;padding:16px;color:var(--text2)">No trabaja este día</div>';
+  } else {
+    const hor=mod&&mod.slots&&mod.slots.length?(()=>{const s=slotsToHorario(new Set(mod.slots.map(Number)));return s.entrada+'-'+s.salida;})():p.hor;
+    const shifts=parseShifts(hor);
+    bodyHtml=shifts.map(s=>'<div class="shift-block"><div class="shift-color" style="background:'+BC[p.id%26]+'"></div>'
+      +'<div class="shift-info"><div class="shift-time">'+s.entrada+' – '+s.salida+'</div>'
+      +'<div class="shift-hours">'+calcH(s.entrada,s.salida)+' horas</div></div></div>').join('');
+  }
+  let actionHtml='';
+  if(works&&!isBaja&&!isVac){
+    actionHtml='<div style="display:flex;gap:8px;margin-top:12px">'
+      +'<button onclick="mihActionDay(this.dataset.k,this.dataset.id,this.dataset.ac)" data-k="'+k+'" data-id="'+p.id+'" data-ac="quitar" style="flex:1;padding:8px;border-radius:var(--radius-sm);border:0.5px solid #ccc;background:#f5f5f7;color:var(--text);font-size:13px;cursor:pointer">✕ Quitar del día</button>'
+      +'</div>';
+  } else if(isElim||isBaja||isVac){
+    actionHtml='<div style="margin-top:12px">'
+      +'<button onclick="mihActionDay(this.dataset.k,this.dataset.id,this.dataset.ac)" data-k="'+k+'" data-id="'+p.id+'" data-ac="restaurar" style="width:100%;padding:8px;border-radius:var(--radius-sm);border:0.5px solid var(--blue);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer">↩ Restaurar</button>'
+      +'</div>';
+  } else if(!works){
+    actionHtml='<div style="margin-top:12px">'
+      +'<button onclick="mihActionDay(this.dataset.k,this.dataset.id,this.dataset.ac)" data-k="'+k+'" data-id="'+p.id+'" data-ac="añadir" style="width:100%;padding:8px;border-radius:var(--radius-sm);border:0.5px solid var(--blue);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer">+ Añadir a este día</button>'
+      +'</div>';
+  }
+  detail.innerHTML='<div class="day-card" style="margin-top:8px">'
+    +'<div class="day-card-header"><div class="day-card-title">'+label+'</div></div>'
+    +'<div class="day-card-body">'+bodyHtml+actionHtml+'</div></div>';
+}
+
+async function mihActionDay(k,id,action){
+  if(typeof id!=='number') id=parseInt(id);
+  const p=STAFF.find(x=>x.id===id);
+  if(!p)return;
+  const slots=activeSlots(p.hor||'');
+  const ent=p.hor?p.hor.split('-')[0]:'';
+  const sal=p.hor?p.hor.split('-').slice(1).join('-'):'';
+  if(action==='restaurar'){
+    showDlg('Restaurar','¿Restaurar a '+p.nombre+' en este día?',false,async ()=>{
+      await saveDayAssignment(k,p.db_id,ent,sal,slots,'activo');
+      delete mihMods[new Date(k+'T00:00:00').getDate()];
+      mihRenderCal();mihSelectDay(new Date(k+'T00:00:00'));
+    });
+  } else if(action==='añadir'){
+    showDlg('Añadir al día','¿Añadir a '+p.nombre+' a este día?',false,async ()=>{
+      await saveDayAssignment(k,p.db_id,ent,sal,slots,'añadido');
+      mihMods[new Date(k+'T00:00:00').getDate()]={personal_id:p.db_id,estado:'añadido',slots:Array.from(slots)};
+      mihRenderCal();mihSelectDay(new Date(k+'T00:00:00'));
+    });
+  } else {
+    // Quitar: show three options
+    document.getElementById('dlg-title').textContent='Quitar del día';
+    document.getElementById('dlg-msg').textContent='¿Qué quieres hacer con '+p.nombre+' en este día?';
+    const okBtn=document.getElementById('dlg-ok');
+    okBtn.textContent='Eliminar';okBtn.className='dialog-ok danger';
+    const btns=document.querySelector('.dialog-btns');
+    ['dlg-mih-baja','dlg-mih-vac'].forEach(bid=>{const e=document.getElementById(bid);if(e)e.remove();});
+    const bajaBtn=document.createElement('button');
+    bajaBtn.id='dlg-mih-baja';bajaBtn.className='dialog-cancel';
+    bajaBtn.style.cssText='background:#e8e8ed;color:#555;border:0.5px solid #ccc';
+    bajaBtn.textContent='Baja médica';
+    const vacBtn2=document.createElement('button');
+    vacBtn2.id='dlg-mih-vac';vacBtn2.className='dialog-cancel';
+    vacBtn2.style.cssText='background:#e6f4ea;color:#18a050;border:0.5px solid #18a050';
+    vacBtn2.textContent='Vacaciones';
+    btns.insertBefore(vacBtn2,okBtn);btns.insertBefore(bajaBtn,vacBtn2);
+    const cleanup=()=>{
+      bajaBtn.remove();vacBtn2.remove();
+      document.getElementById('dlg').style.display='none';dlgCb=null;
+    };
+    bajaBtn.onclick=async ()=>{cleanup();await saveDayAssignment(k,p.db_id,ent,sal,slots,'baja');mihMods[new Date(k+'T00:00:00').getDate()]={personal_id:p.db_id,estado:'baja'};mihRenderCal();mihSelectDay(new Date(k+'T00:00:00'));};
+    vacBtn2.onclick=async ()=>{cleanup();await saveDayAssignment(k,p.db_id,ent,sal,slots,'vacaciones');mihMods[new Date(k+'T00:00:00').getDate()]={personal_id:p.db_id,estado:'vacaciones'};mihRenderCal();mihSelectDay(new Date(k+'T00:00:00'));};
+    dlgCb=async ()=>{cleanup();await saveDayAssignment(k,p.db_id,ent,sal,slots,'eliminado');mihMods[new Date(k+'T00:00:00').getDate()]={personal_id:p.db_id,estado:'eliminado'};mihRenderCal();mihSelectDay(new Date(k+'T00:00:00'));};
+    document.getElementById('dlg').style.display='flex';
+  }
+}
 </script>
 <div id="print-area"><div id="print-content"></div></div>
 </div>
