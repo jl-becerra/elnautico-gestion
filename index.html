@@ -1138,7 +1138,7 @@ function askRemoveWEl(el){
     const pv=document.getElementById('dlg-vac');if(pv)pv.remove();
     const a=(dayData[k]||[]).find(x=>x.id===id);
     if(a){
-      if(a.added){supa.delete('horarios_dia','fecha=eq.'+k+'%26personal_id=eq.'+a.db_id).catch(e=>console.error(e));dayData[k]=(dayData[k]||[]).filter(x=>x.id!==id);}
+      if(a.added){supa.delete('horarios_dia','fecha=eq.'+k+'&personal_id=eq.'+a.db_id).catch(e=>console.error(e));dayData[k]=(dayData[k]||[]).filter(x=>x.id!==id);}
       else{a.deleted=true;a.baja=true;a.vacaciones=false;saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,'baja');}
     }
     renderDayView();
@@ -1158,7 +1158,7 @@ function askRemoveWEl(el){
     const pv=document.getElementById('dlg-vac');if(pv)pv.remove();
     const a=(dayData[k]||[]).find(x=>x.id===id);
     if(a){
-      if(a.added){supa.delete('horarios_dia','fecha=eq.'+k+'%26personal_id=eq.'+a.db_id).catch(e=>console.error(e));dayData[k]=(dayData[k]||[]).filter(x=>x.id!==id);}
+      if(a.added){supa.delete('horarios_dia','fecha=eq.'+k+'&personal_id=eq.'+a.db_id).catch(e=>console.error(e));dayData[k]=(dayData[k]||[]).filter(x=>x.id!==id);}
       else{a.deleted=true;a.baja=false;a.vacaciones=true;saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,'vacaciones');}
     }
     renderDayView();
@@ -1168,7 +1168,7 @@ function askRemoveWEl(el){
     if(a){
       if(a.added){
         // Added worker removed: delete from DB entirely and remove from local data
-        supa.delete('horarios_dia','fecha=eq.'+k+'%26personal_id=eq.'+a.db_id).catch(e=>console.error(e));
+        supa.delete('horarios_dia','fecha=eq.'+k+'&personal_id=eq.'+a.db_id).catch(e=>console.error(e));
         dayData[k]=(dayData[k]||[]).filter(x=>x.id!==id);
       } else {
         a.deleted=true;a.baja=false;
