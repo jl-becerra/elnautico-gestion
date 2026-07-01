@@ -1388,6 +1388,48 @@ async function init() {
   await loadStaff();
   renderCal();
 }
+
+// ── PASSWORD ────────────────────────────────────────────────────────
+const DEFAULT_PWD = 'nautico2026';
+function getPwd(){ return localStorage.getItem('nautico_pwd')||DEFAULT_PWD; }
+
+function checkPwd(){
+  const val=document.getElementById('pwd-input').value;
+  if(val===getPwd()){
+    document.getElementById('pwd-screen').style.display='none';
+    document.getElementById('main-app').style.display='flex';
+    sessionStorage.setItem('nautico_auth','1');
+  } else {
+    document.getElementById('pwd-err').textContent='Contraseña incorrecta';
+    document.getElementById('pwd-input').value='';
+    document.getElementById('pwd-input').focus();
+  }
+}
+
+function showChangePwd(){
+  document.getElementById('change-pwd-overlay').style.display='flex';
+}
+
+function doChangePwd(){
+  const old=document.getElementById('pwd-old').value;
+  const n1=document.getElementById('pwd-new1').value;
+  const n2=document.getElementById('pwd-new2').value;
+  const err=document.getElementById('pwd-change-err');
+  if(old!==getPwd()){err.textContent='Contraseña actual incorrecta';return;}
+  if(n1.length<4){err.textContent='Mínimo 4 caracteres';return;}
+  if(n1!==n2){err.textContent='Las contraseñas no coinciden';return;}
+  localStorage.setItem('nautico_pwd',n1);
+  document.getElementById('change-pwd-overlay').style.display='none';
+  ['pwd-old','pwd-new1','pwd-new2'].forEach(id=>document.getElementById(id).value='');
+  alert('Contraseña cambiada correctamente');
+}
+
+// Auto-login if authenticated this session
+if(sessionStorage.getItem('nautico_auth')==='1'){
+  document.getElementById('pwd-screen').style.display='none';
+  document.getElementById('main-app').style.display='flex';
+}
+
 init();
 
 // ── EXPORT PERSONAL TO EXCEL ───────────────────────────────────────
