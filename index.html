@@ -1019,7 +1019,13 @@ function renderDayView(){
   const nEliminados=raw.filter(a=>a.deleted).length;
 
   document.getElementById('day-view').innerHTML=`
-    <div class="back-btn" onclick="closeDayView()">◀ Volver al calendario</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="back-btn" style="margin-bottom:0" onclick="closeDayView()">◀ Volver</div>
+      <div style="display:flex;gap:6px">
+        <button onclick="navigateDay(-1)" style="padding:5px 12px;border-radius:var(--radius-sm);border:0.5px solid var(--border2);background:var(--bg3);color:var(--text);font-size:14px;cursor:pointer">‹</button>
+        <button onclick="navigateDay(1)" style="padding:5px 12px;border-radius:var(--radius-sm);border:0.5px solid var(--border2);background:var(--bg3);color:var(--text);font-size:14px;cursor:pointer">›</button>
+      </div>
+    </div>
     <div class="day-title">${label}</div>
     <div class="day-meta">${nActivos} personas asignadas${nEliminados?` · <span style="color:#aaa">${nEliminados} eliminado${nEliminados>1?'s':''}</span>`:''}</div>
     <div class="schedule-box">
@@ -1294,8 +1300,9 @@ async function genGestoriaExcel(){
     });
   });
 
+  function fmtEs(d){const[y,m,dd]=d.split('-');return dd+'/'+m+'/'+y;}
   const tableHtml=`
-    <p class="title">El Náutico · Informe Gestoría · ${desde} a ${hasta}</p>
+    <p class="title">El Náutico · Informe Gestoría · ${fmtEs(desde)} a ${fmtEs(hasta)}</p>
     <p style="margin-bottom:16px;color:#d42020;font-size:10pt">* Las fechas en rojo están fuera del período de análisis</p>
     <p style="font-weight:bold;margin-bottom:6px;font-size:12pt">Trabajadores Fijos (alta única)</p>
     <table><thead><tr><th>Nombre</th><th>Apellidos</th><th>Puesto</th><th>Fecha alta</th><th>Fecha baja</th></tr></thead>
@@ -1344,10 +1351,10 @@ async function genNominasExcel(){
     bodyRows+=`<tr>
       <td>${p.nombre}</td><td>${p.ape}</td><td>${p.puesto}</td>
       <td style="text-align:center">${fijo(p)?'Fijo':'Por días'}</td>
-      <td style="text-align:center">${p.honorarios||0}€/h</td>
-      <td style="text-align:center">${dT}</td>
-      <td style="text-align:center">${hT}h</td>
-      <td style="text-align:center;font-weight:bold">${sueldo}€</td>
+      <td style="text-align:right">${p.honorarios||0} €/h</td>
+      <td style="text-align:right">${dT}</td>
+      <td style="text-align:right">${hT} h</td>
+      <td style="text-align:right;font-weight:bold">${sueldo} €</td>
     </tr>`;
   }
 
@@ -1356,14 +1363,14 @@ async function genNominasExcel(){
     <table>
       <thead><tr>
         <th>Nombre</th><th>Apellidos</th><th>Puesto</th><th>Contrato</th>
-        <th>€/h</th><th>Días trabajados</th><th>Horas totales</th><th>Sueldo total</th>
+        <th style="text-align:right">€/h</th><th style="text-align:right">Días trabajados</th><th style="text-align:right">Horas totales</th><th style="text-align:right">Sueldo total</th>
       </tr></thead>
       <tbody>${bodyRows}</tbody>
       <tfoot><tr class="total">
         <td colspan="5">TOTAL</td>
-        <td style="text-align:center">${totalDias}</td>
-        <td style="text-align:center">${totalH}h</td>
-        <td style="text-align:center">${totalSueldo}€</td>
+        <td style="text-align:right">${totalDias}</td>
+        <td style="text-align:right">${totalH} h</td>
+        <td style="text-align:right;font-weight:bold">${totalSueldo} €</td>
       </tr></tfoot>
     </table>`;
 
