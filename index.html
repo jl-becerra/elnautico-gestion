@@ -194,7 +194,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .pwd-err{color:#d42020;font-size:13px;font-weight:600;min-height:20px}
 .pwd-change{font-size:12px;color:#7a6000;text-decoration:underline;cursor:pointer;background:none;border:none;margin-top:8px}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div id="pwd-screen" class="pwd-screen">
@@ -756,6 +755,16 @@ async function openDay(date){
   await buildDay(date);
   renderDayView();
 }
+function navigateDay(delta){
+  const nd=new Date(selDay);
+  nd.setDate(nd.getDate()+delta);
+  // Stay within July-August 2026
+  if(nd.getFullYear()===2026&&(nd.getMonth()===6||nd.getMonth()===7)){
+    selDay=nd;showAdd=false;
+    document.getElementById('day-view').innerHTML='<div style="padding:40px;text-align:center;color:var(--text2);font-size:14px">Cargando...</div>';
+    buildDay(nd).then(()=>renderDayView());
+  }
+}
 function closeDayView(){
   // Mark day as stale so it reloads from DB next time it's opened
   // but keep data in cache so renderCal shows correct count now
@@ -1188,21 +1197,27 @@ function allDays(){
   while(d<=new Date(2026,7,31)){days.push(new Date(d));d.setDate(d.getDate()+1);}
   return days;
 }
-function xlsxDownload(wb, filename){
-  const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
-  const blob = new Blob([wbout], {type:'application/octet-stream'});
+function htmlTableDownload(tableHtml, filename){
+  // Excel opens HTML files with basic formatting
+  const full = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    + '<style>'
+    + 'body{font-family:Arial,sans-serif;font-size:11pt}'
+    + 'table{border-collapse:collapse;width:100%}'
+    + 'th{background:#F5C300;color:#1a1200;font-weight:bold;padding:6px 10px;border:1px solid #999;text-align:left}'
+    + 'td{padding:5px 10px;border:1px solid #ccc}'
+    + 'tr:nth-child(even) td{background:#fafafa}'
+    + '.title{font-size:14pt;font-weight:bold;color:#1a1200;margin-bottom:8px}'
+    + '.red{color:#d42020;font-weight:bold}'
+    + '.total td{background:#e8e8ed;font-weight:bold;border-top:2px solid #999}'
+    + '</style></head><body>'
+    + tableHtml
+    + '</body></html>';
+  const blob = new Blob([full], {type:'application/vnd.ms-excel;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href=url; a.download=filename;
   document.body.appendChild(a); a.click();
   document.body.removeChild(a); URL.revokeObjectURL(url);
-}
-
-function styleSheet(ws, headerRow, redRows){
-  // Apply styles via cell objects — SheetJS free version supports limited styles
-  // We encode styles by using cell.s but need xlsx-style; instead use HTML approach
-  // For now just set column widths
-  return ws;
 }
 
 async function genGestoriaExcel(){
@@ -1219,33 +1234,24 @@ async function genGestoriaExcel(){
   const modsByDate={};
   rows.forEach(r=>{if(!modsByDate[r.fecha])modsByDate[r.fecha]=[];modsByDate[r.fecha].push(r);});
 
-  const wb = XLSX.utils.book_new();
-
-  // ── HOJA 1: FIJOS ──
-  const fijoData = [['Nombre','Apellidos','Puesto','Fecha alta','Fecha baja','Fuera de período']];
+  // ── FIJOS ──
+  let fijoRows='';
   STAFF.filter(p=>fijo(p)).forEach(p=>{
     if(!p.inicio) return;
-    const inicio=new Date(p.inicio);
-    const fin=p.fin?new Date(p.fin):new Date('2026-12-31');
-    if(inicio>d2) return; // Not started yet
-    const altaFuera = inicio<d1 || inicio>d2;
-    const bajaFuera = fin<d1 || fin>d2;
-    fijoData.push([
-      p.nombre, p.ape, p.puesto,
-      p.inicio||'',
-      p.fin||'',
-      (altaFuera||bajaFuera)?'Sí':''
-    ]);
+    const inicio=new Date(p.inicio+'T00:00:00');
+    if(inicio>d2) return;
+    const fin=p.fin?new Date(p.fin+'T00:00:00'):new Date('2026-12-31');
+    const altaFuera=inicio<d1;
+    const bajaFuera=fin>d2;
+    const altaTd=altaFuera?`<td class="red">${p.inicio}</td>`:`<td>${p.inicio}</td>`;
+    const bajaTd=bajaFuera?`<td class="red">${p.fin||'—'}</td>`:`<td>${p.fin||'—'}</td>`;
+    fijoRows+=`<tr><td>${p.nombre}</td><td>${p.ape}</td><td>${p.puesto}</td>${altaTd}${bajaTd}</tr>`;
   });
-  const wsFijos = XLSX.utils.aoa_to_sheet(fijoData);
-  wsFijos['!cols']=[{wch:14},{wch:22},{wch:18},{wch:12},{wch:12},{wch:16}];
-  XLSX.utils.book_append_sheet(wb, wsFijos, 'Fijos');
 
-  // ── HOJA 2: POR DÍAS (agrupado por trabajador y períodos) ──
+  // ── POR DÍAS: group consecutive days ──
   const porDias=STAFF.filter(p=>!fijo(p));
-  // Build map: db_id → [{fecha}] of working days
   const workerDays={};
-  porDias.forEach(p=>{ workerDays[p.db_id]=[]; });
+  porDias.forEach(p=>{workerDays[p.db_id]=[];});
 
   for(const date of rangeDays){
     const k=fmtD(date);
@@ -1256,52 +1262,50 @@ async function genGestoriaExcel(){
       if(mod&&(mod.estado==='eliminado'||mod.estado==='baja')) return;
       workerDays[p.db_id].push(k);
     });
-    // Also añadidos
     mods.filter(m=>m.estado==='añadido').forEach(m=>{
       const p=porDias.find(x=>x.db_id===m.personal_id);
       if(p&&!workerDays[p.db_id].includes(k)) workerDays[p.db_id].push(k);
     });
   }
 
-  // Group consecutive days into periods
   function groupPeriods(days){
     if(!days.length) return [];
     const sorted=[...days].sort();
     const periods=[];
-    let start=sorted[0], prev=sorted[0];
+    let start=sorted[0],prev=sorted[0];
     for(let i=1;i<sorted.length;i++){
-      const curr=sorted[i];
-      const prevDate=new Date(prev), currDate=new Date(curr);
-      const diff=(currDate-prevDate)/(1000*60*60*24);
-      if(diff>1){periods.push({alta:start,baja:prev});start=curr;}
-      prev=curr;
+      const diff=(new Date(sorted[i])-new Date(prev))/(86400000);
+      if(diff>1){periods.push({alta:start,baja:prev});start=sorted[i];}
+      prev=sorted[i];
     }
     periods.push({alta:start,baja:prev});
     return periods;
   }
 
-  const diasData=[['Nombre','Apellidos','Puesto','Fecha alta','Fecha baja','Fuera de período']];
+  let diasRows='';
   porDias.forEach(p=>{
-    const days=workerDays[p.db_id]||[];
-    const periods=groupPeriods(days);
+    const periods=groupPeriods(workerDays[p.db_id]||[]);
     periods.forEach(({alta,baja})=>{
-      const altaFuera=alta<desde||alta>hasta;
-      const bajaFuera=baja<desde||baja>hasta;
-      diasData.push([
-        p.nombre, p.ape, p.puesto,
-        alta, baja,
-        (altaFuera||bajaFuera)?'Sí':''
-      ]);
+      const altaFuera=alta<desde;
+      const bajaFuera=baja>hasta;
+      const altaTd=altaFuera?`<td class="red">${alta}</td>`:`<td>${alta}</td>`;
+      const bajaTd=bajaFuera?`<td class="red">${baja}</td>`:`<td>${baja}</td>`;
+      diasRows+=`<tr><td>${p.nombre}</td><td>${p.ape}</td><td>${p.puesto}</td>${altaTd}${bajaTd}</tr>`;
     });
   });
 
-  const wsDias=XLSX.utils.aoa_to_sheet(diasData);
-  wsDias['!cols']=[{wch:14},{wch:22},{wch:18},{wch:12},{wch:12},{wch:16}];
-  XLSX.utils.book_append_sheet(wb, wsDias, 'Por días');
+  const tableHtml=`
+    <p class="title">El Náutico · Informe Gestoría · ${desde} a ${hasta}</p>
+    <p style="margin-bottom:16px;color:#d42020;font-size:10pt">* Las fechas en rojo están fuera del período de análisis</p>
+    <p style="font-weight:bold;margin-bottom:6px;font-size:12pt">Trabajadores Fijos (alta única)</p>
+    <table><thead><tr><th>Nombre</th><th>Apellidos</th><th>Puesto</th><th>Fecha alta</th><th>Fecha baja</th></tr></thead>
+    <tbody>${fijoRows}</tbody></table>
+    <br><br>
+    <p style="font-weight:bold;margin-bottom:6px;font-size:12pt">Trabajadores por Días (por períodos)</p>
+    <table><thead><tr><th>Nombre</th><th>Apellidos</th><th>Puesto</th><th>Fecha alta</th><th>Fecha baja</th></tr></thead>
+    <tbody>${diasRows}</tbody></table>`;
 
-  const now=new Date();
-  const fecha=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
-  xlsxDownload(wb,'ElNautico_Gestoria_'+desde+'_'+hasta+'.xlsx');
+  htmlTableDownload(tableHtml,'ElNautico_Gestoria_'+desde+'_'+hasta+'.xls');
 }
 
 async function genNominasExcel(){
@@ -1316,15 +1320,11 @@ async function genNominasExcel(){
   const modsByDate={};
   rows.forEach(r=>{if(!modsByDate[r.fecha])modsByDate[r.fecha]=[];modsByDate[r.fecha].push(r);});
 
-  const wb=XLSX.utils.book_new();
-  const sheetData=[
-    ['El Náutico · Nóminas '+mName+' 2026'],
-    [],
-    ['Nombre','Apellidos','Puesto','Contrato','€/h','Días trabajados','Horas totales','Sueldo total (€)']
-  ];
+  let totalDias=0,totalH=0,totalSueldo=0;
+  let bodyRows='';
 
   for(const p of STAFF){
-    let totalH=0, diasT=0;
+    let hT=0,dT=0;
     for(const date of monthDays){
       const k=fmtD(date);
       const mods=modsByDate[k]||[];
@@ -1337,34 +1337,38 @@ async function genNominasExcel(){
         if(works&&mod.slots&&mod.slots.length) h=mod.slots.length*0.5;
       }
       if(works&&!h) h=calcHFromSlots(activeSlots(p.hor||''));
-      if(works&&h>0){totalH+=h;diasT++;}
+      if(works&&h>0){hT+=h;dT++;}
     }
-    const sueldo=Math.round(totalH*(p.honorarios||0)*100)/100;
-    sheetData.push([
-      p.nombre, p.ape, p.puesto,
-      fijo(p)?'Fijo':'Por días',
-      p.honorarios||0,
-      diasT, totalH, sueldo
-    ]);
+    const sueldo=Math.round(hT*(p.honorarios||0)*100)/100;
+    totalDias+=dT; totalH+=hT; totalSueldo=Math.round((totalSueldo+sueldo)*100)/100;
+    bodyRows+=`<tr>
+      <td>${p.nombre}</td><td>${p.ape}</td><td>${p.puesto}</td>
+      <td style="text-align:center">${fijo(p)?'Fijo':'Por días'}</td>
+      <td style="text-align:center">${p.honorarios||0}€/h</td>
+      <td style="text-align:center">${dT}</td>
+      <td style="text-align:center">${hT}h</td>
+      <td style="text-align:center;font-weight:bold">${sueldo}€</td>
+    </tr>`;
   }
 
-  // Totals row
-  const dataStart=4, dataEnd=3+STAFF.length;
-  sheetData.push([
-    'TOTAL','','','','',
-    '=SUM(F'+dataStart+':F'+dataEnd+')',
-    '=SUM(G'+dataStart+':G'+dataEnd+')',
-    '=SUM(H'+dataStart+':H'+dataEnd+')'
-  ]);
+  const tableHtml=`
+    <p class="title">El Náutico · Nóminas ${mName} 2026</p>
+    <table>
+      <thead><tr>
+        <th>Nombre</th><th>Apellidos</th><th>Puesto</th><th>Contrato</th>
+        <th>€/h</th><th>Días trabajados</th><th>Horas totales</th><th>Sueldo total</th>
+      </tr></thead>
+      <tbody>${bodyRows}</tbody>
+      <tfoot><tr class="total">
+        <td colspan="5">TOTAL</td>
+        <td style="text-align:center">${totalDias}</td>
+        <td style="text-align:center">${totalH}h</td>
+        <td style="text-align:center">${totalSueldo}€</td>
+      </tr></tfoot>
+    </table>`;
 
-  const ws=XLSX.utils.aoa_to_sheet(sheetData);
-  ws['!cols']=[{wch:14},{wch:22},{wch:18},{wch:10},{wch:6},{wch:14},{wch:14},{wch:16}];
-  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}]; // Merge title
-  XLSX.utils.book_append_sheet(wb, ws, mName+' 2026');
-
-  xlsxDownload(wb,'ElNautico_Nominas_'+mName+'_2026.xlsx');
+  htmlTableDownload(tableHtml,'ElNautico_Nominas_'+mName+'_2026.xls');
 }
-
 
 function exportPersonalPDF(){
   const now=new Date();
