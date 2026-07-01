@@ -635,7 +635,9 @@ async function buildDay(date){
     if(mod.estado==='eliminado'){
       if(existing){existing.deleted=true;existing.baja=false;}
     } else if(mod.estado==='baja'){
-      if(existing){existing.deleted=true;existing.baja=true;}
+      if(existing){existing.deleted=true;existing.baja=true;existing.vacaciones=false;}
+    } else if(mod.estado==='vacaciones'){
+      if(existing){existing.deleted=true;existing.baja=false;existing.vacaciones=true;}
     } else if(mod.estado==='añadido'){
       const p=STAFF.find(x=>x.db_id===mod.personal_id);
       if(!existing&&p){
@@ -705,6 +707,7 @@ function dlgCancel(){
   document.getElementById('dlg').style.display='none';
   dlgCb=null;
   const pb=document.getElementById('dlg-baja');if(pb)pb.remove();
+  const pv=document.getElementById('dlg-vac');if(pv)pv.remove();
 }
 
 // ── NAVEGACIÓN ──
@@ -907,8 +910,8 @@ function renderDayView(){
         const isHourStart=(si%2===0);
         const borderClass=isHourStart?'td-half hour-start':'td-half';
         if(a.deleted){
-          const letter=a.baja?'B':'C';
-          const letterColor=a.baja?'#888':'#d00';
+          const letter=a.vacaciones?'V':a.baja?'B':'C';
+          const letterColor=a.vacaciones?'#18a050':a.baja?'#888':'#d00';
           if(inOrig) return'<td class="'+borderClass+'" style="background:#f0f0f0"><span class="cell-fill" style="display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:'+letterColor+'">'+letter+'</span></td>';
           return'<td class="'+borderClass+'"></td>';
         }
@@ -1144,10 +1147,11 @@ function restoreWEl(el){
   const p=STAFF.find(x=>x.id===id);
   const a=(dayData[k]||[]).find(x=>x.id===id);
   const isBaja=a&&a.baja;
-  showDlg(isBaja?'Anular baja':'Restaurar trabajador',
-    (isBaja?'¿Anular la baja médica de ':'¿Restaurar a ')+(p?p.nombre+' '+p.ape:'')+' en este día?',
+  const isVac=a&&a.vacaciones;
+  showDlg(isVac?'Anular vacaciones':isBaja?'Anular baja':'Restaurar trabajador',
+    (isVac?'¿Anular las vacaciones de ':isBaja?'¿Anular la baja médica de ':'¿Restaurar a ')+(p?p.nombre+' '+p.ape:'')+' en este día?',
     false,()=>{
-    if(a){a.deleted=false;a.baja=false;saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':'activo');}
+    if(a){a.deleted=false;a.baja=false;a.vacaciones=false;saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':'activo');}
     renderDayView();
   });
 }
@@ -1330,20 +1334,25 @@ async function genNominasExcel(){
   let bodyRows='';
 
   for(const p of STAFF){
-    let hT=0,dT=0;
+    let hT=0,dT=0,vacDias=0;const vacFechas=[];
     for(const date of monthDays){
       const k=fmtD(date);
       const mods=modsByDate[k]||[];
       const mod=mods.find(mm=>mm.personal_id===p.db_id);
       let works=isAvail(p,date);
       let h=0;
+      let isVac=false;
       if(mod){
         if(mod.estado==='eliminado'||mod.estado==='baja') works=false;
+        else if(mod.estado==='vacaciones'){works=true;isVac=true;}
         else if(mod.estado==='añadido') works=true;
         if(works&&mod.slots&&mod.slots.length) h=mod.slots.length*0.5;
       }
       if(works&&!h) h=calcHFromSlots(activeSlots(p.hor||''));
-      if(works&&h>0){hT+=h;dT++;}
+      if(works&&h>0){
+        hT+=h;dT++;
+        if(isVac){vacDias++;vacFechas.push(date.getDate()+'/'+(date.getMonth()+1));}
+      }
     }
     const sueldo=Math.round(hT*(p.honorarios||0)*100)/100;
     totalDias+=dT; totalH+=hT; totalSueldo=Math.round((totalSueldo+sueldo)*100)/100;
@@ -1352,6 +1361,8 @@ async function genNominasExcel(){
       <td style="text-align:center">${fijo(p)?'Fijo':'Por días'}</td>
       <td style="text-align:right">${p.honorarios||0} €/h</td>
       <td style="text-align:right">${dT}</td>
+      <td style="text-align:right;color:${vacDias?'#18a050':'inherit'}">${vacDias||'—'}</td>
+      <td style="font-size:9pt;color:#18a050">${vacFechas.join(', ')||'—'}</td>
       <td style="text-align:right">${hT} h</td>
       <td style="text-align:right;font-weight:bold">${sueldo} €</td>
     </tr>`;
@@ -1362,7 +1373,7 @@ async function genNominasExcel(){
     <table>
       <thead><tr>
         <th>Nombre</th><th>Apellidos</th><th>Puesto</th><th>Contrato</th>
-        <th style="text-align:right">€/h</th><th style="text-align:right">Días trabajados</th><th style="text-align:right">Horas totales</th><th style="text-align:right">Sueldo total</th>
+        <th style="text-align:right">€/h</th><th style="text-align:right">Días trabajados</th><th style="text-align:right">Días vacaciones</th><th style="text-align:right">Fechas vacaciones</th><th style="text-align:right">Horas totales</th><th style="text-align:right">Sueldo total</th>
       </tr></thead>
       <tbody>${bodyRows}</tbody>
       <tfoot><tr class="total">
@@ -1581,7 +1592,7 @@ function renderAdminList(){
   const q=(document.getElementById('admin-search')||{}).value||'';
   const filtered=adminStaff.filter((p,i)=>{
     return (p.nombre+' '+p.ape+' '+p.puesto).toLowerCase().includes(q.toLowerCase());
-  });
+  }).sort((a,b)=>a.ape.localeCompare(b.ape,'es'));
   const fijos=adminStaff.filter(p=>(p.horasDia?p.horasDia.reduce((a,b)=>a+b,0):p.hSem)>=40);
   const elTot=document.getElementById('a-tot');
   const elFij=document.getElementById('a-fij');
