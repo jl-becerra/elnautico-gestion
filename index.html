@@ -1230,8 +1230,7 @@ async function genGestoriaExcel(){
   const desde = document.getElementById('gest-desde').value;
   const hasta = document.getElementById('gest-hasta').value;
   if(!desde||!hasta){alert('Selecciona fecha de inicio y fin');return;}
-  const d1=new Date(desde), d2=new Date(hasta);
-  if(d1>d2){alert('La fecha de inicio debe ser anterior a la fecha fin');return;}
+  if(desde>hasta){alert('La fecha de inicio debe ser anterior a la fecha fin');return;}
 
   const rangeDays=[];
   for(let d=new Date(d1);d<=d2;d.setDate(d.getDate()+1)) rangeDays.push(new Date(d));
@@ -1244,13 +1243,11 @@ async function genGestoriaExcel(){
   let fijoRows='';
   STAFF.filter(p=>fijo(p)).forEach(p=>{
     if(!p.inicio) return;
-    const inicio=new Date(p.inicio+'T00:00:00');
-    if(inicio>d2) return;
-    const fin=p.fin?new Date(p.fin+'T00:00:00'):new Date('2026-12-31');
-    const altaFuera=inicio<d1;
-    const bajaFuera=fin>d2;
-    const altaTd=altaFuera?`<td class="red">${p.inicio}</td>`:`<td>${p.inicio}</td>`;
-    const bajaTd=bajaFuera?`<td class="red">${p.fin||'—'}</td>`:`<td>${p.fin||'—'}</td>`;
+    if(p.inicio>hasta) return; // not started yet
+    const altaFuera=p.inicio<desde;  // strictly before period start
+    const bajaFuera=p.fin&&p.fin>hasta;  // strictly after period end
+    const altaTd=altaFuera?`<td class="red">${fmtEs(p.inicio)}</td>`:`<td>${fmtEs(p.inicio)}</td>`;
+    const bajaTd=bajaFuera?`<td class="red">${fmtEs(p.fin)}</td>`:`<td>${p.fin?fmtEs(p.fin):'—'}</td>`;
     fijoRows+=`<tr><td>${p.nombre}</td><td>${p.ape}</td><td>${p.puesto}</td>${altaTd}${bajaTd}</tr>`;
   });
 
@@ -1294,8 +1291,8 @@ async function genGestoriaExcel(){
     periods.forEach(({alta,baja})=>{
       const altaFuera=alta<desde;
       const bajaFuera=baja>hasta;
-      const altaTd=altaFuera?`<td class="red">${alta}</td>`:`<td>${alta}</td>`;
-      const bajaTd=bajaFuera?`<td class="red">${baja}</td>`:`<td>${baja}</td>`;
+      const altaTd=altaFuera?`<td class="red">${fmtEs(alta)}</td>`:`<td>${fmtEs(alta)}</td>`;
+      const bajaTd=bajaFuera?`<td class="red">${fmtEs(baja)}</td>`:`<td>${fmtEs(baja)}</td>`;
       diasRows+=`<tr><td>${p.nombre}</td><td>${p.ape}</td><td>${p.puesto}</td>${altaTd}${bajaTd}</tr>`;
     });
   });
