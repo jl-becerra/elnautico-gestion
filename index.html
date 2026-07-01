@@ -194,6 +194,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .pwd-err{color:#d42020;font-size:13px;font-weight:600;min-height:20px}
 .pwd-change{font-size:12px;color:#7a6000;text-decoration:underline;cursor:pointer;background:none;border:none;margin-top:8px}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div id="pwd-screen" class="pwd-screen">
@@ -253,7 +254,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
       </div>
       <div class="inf-card">
         <div class="inf-card-title">Horas para nóminas</div>
-        <div class="inf-card-desc">Una hoja por mes con horas, honorario €/h y total de sueldo por trabajador.</div>
+        <div class="inf-card-desc">Horas, honorario €/h y sueldo total del mes seleccionado.</div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:11px;color:var(--text2);margin-bottom:3px">Mes</div>
+          <select id="nom-mes" style="width:100%;padding:7px;border:0.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;background:var(--bg2);color:var(--text)">
+            <option value="6">Julio 2026</option>
+            <option value="7">Agosto 2026</option>
+          </select>
+        </div>
         <button class="gen-btn green" onclick="genNominasExcel()">↓ Generar Excel nóminas</button>
       </div>
     </div>
@@ -1180,127 +1188,181 @@ function allDays(){
   while(d<=new Date(2026,7,31)){days.push(new Date(d));d.setDate(d.getDate()+1);}
   return days;
 }
-function csvDownload(content, filename){
-  const BOM='\uFEFF';
-  const blob=new Blob([BOM+content],{type:'text/tab-separated-values;charset=utf-8'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download=filename;
-  document.body.appendChild(a);a.click();
-  document.body.removeChild(a);URL.revokeObjectURL(url);
+function xlsxDownload(wb, filename){
+  const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const blob = new Blob([wbout], {type:'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function styleSheet(ws, headerRow, redRows){
+  // Apply styles via cell objects — SheetJS free version supports limited styles
+  // We encode styles by using cell.s but need xlsx-style; instead use HTML approach
+  // For now just set column widths
+  return ws;
 }
 
 async function genGestoriaExcel(){
-  const desde=document.getElementById('gest-desde').value;
-  const hasta=document.getElementById('gest-hasta').value;
+  const desde = document.getElementById('gest-desde').value;
+  const hasta = document.getElementById('gest-hasta').value;
   if(!desde||!hasta){alert('Selecciona fecha de inicio y fin');return;}
-  const d1=new Date(desde),d2=new Date(hasta);
+  const d1=new Date(desde), d2=new Date(hasta);
   if(d1>d2){alert('La fecha de inicio debe ser anterior a la fecha fin');return;}
 
-  // Build date range
   const rangeDays=[];
   for(let d=new Date(d1);d<=d2;d.setDate(d.getDate()+1)) rangeDays.push(new Date(d));
 
-  // Fetch all horarios_dia for this range from Supabase
-  const rows=await supa.get('horarios_dia',
-    'fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]);
+  const rows=await supa.get('horarios_dia','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]);
   const modsByDate={};
-  rows.forEach(r=>{
-    if(!modsByDate[r.fecha])modsByDate[r.fecha]=[];
-    modsByDate[r.fecha].push(r);
-  });
+  rows.forEach(r=>{if(!modsByDate[r.fecha])modsByDate[r.fecha]=[];modsByDate[r.fecha].push(r);});
 
-  const NL='\n';
-  let csv='Nombre\tApellidos\tPuesto\tFecha alta\tTipo\n';
+  const wb = XLSX.utils.book_new();
 
-  // Fijos: alta única si inicio está en rango o antes
+  // ── HOJA 1: FIJOS ──
+  const fijoData = [['Nombre','Apellidos','Puesto','Fecha alta','Fecha baja','Fuera de período']];
   STAFF.filter(p=>fijo(p)).forEach(p=>{
-    if(!p.inicio)return;
+    if(!p.inicio) return;
     const inicio=new Date(p.inicio);
-    // Only include if contract started within or before range
-    if(inicio<=d2){
-      const altaFecha=inicio>=d1?p.inicio:desde;
-      csv+=p.nombre+'\t'+p.ape+'\t'+p.puesto+'\t'+altaFecha+'\tFijo\n';
-    }
+    const fin=p.fin?new Date(p.fin):new Date('2026-12-31');
+    if(inicio>d2) return; // Not started yet
+    const altaFuera = inicio<d1 || inicio>d2;
+    const bajaFuera = fin<d1 || fin>d2;
+    fijoData.push([
+      p.nombre, p.ape, p.puesto,
+      p.inicio||'',
+      p.fin||'',
+      (altaFuera||bajaFuera)?'Sí':''
+    ]);
   });
+  const wsFijos = XLSX.utils.aoa_to_sheet(fijoData);
+  wsFijos['!cols']=[{wch:14},{wch:22},{wch:18},{wch:12},{wch:12},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, wsFijos, 'Fijos');
 
-  // Por días: one row per day worked
+  // ── HOJA 2: POR DÍAS (agrupado por trabajador y períodos) ──
   const porDias=STAFF.filter(p=>!fijo(p));
+  // Build map: db_id → [{fecha}] of working days
+  const workerDays={};
+  porDias.forEach(p=>{ workerDays[p.db_id]=[]; });
+
   for(const date of rangeDays){
     const k=fmtD(date);
     const mods=modsByDate[k]||[];
-    // Base available workers
-    const baseWorkers=porDias.filter(p=>isAvail(p,date));
-    // Apply mods
-    const finalWorkers=[];
-    baseWorkers.forEach(p=>{
+    porDias.forEach(p=>{
+      if(!isAvail(p,date)) return;
       const mod=mods.find(m=>m.personal_id===p.db_id);
-      if(!mod||mod.estado==='activo') finalWorkers.push(p);
-      else if(mod.estado==='añadido') finalWorkers.push(p);
-      // eliminado/baja = not working
+      if(mod&&(mod.estado==='eliminado'||mod.estado==='baja')) return;
+      workerDays[p.db_id].push(k);
     });
-    // Also añadidos not in base
+    // Also añadidos
     mods.filter(m=>m.estado==='añadido').forEach(m=>{
       const p=porDias.find(x=>x.db_id===m.personal_id);
-      if(p&&!finalWorkers.find(x=>x.db_id===p.db_id)) finalWorkers.push(p);
-    });
-    finalWorkers.forEach(p=>{
-      csv+=p.nombre+'\t'+p.ape+'\t'+p.puesto+'\t'+k+'\tPor días\n';
+      if(p&&!workerDays[p.db_id].includes(k)) workerDays[p.db_id].push(k);
     });
   }
+
+  // Group consecutive days into periods
+  function groupPeriods(days){
+    if(!days.length) return [];
+    const sorted=[...days].sort();
+    const periods=[];
+    let start=sorted[0], prev=sorted[0];
+    for(let i=1;i<sorted.length;i++){
+      const curr=sorted[i];
+      const prevDate=new Date(prev), currDate=new Date(curr);
+      const diff=(currDate-prevDate)/(1000*60*60*24);
+      if(diff>1){periods.push({alta:start,baja:prev});start=curr;}
+      prev=curr;
+    }
+    periods.push({alta:start,baja:prev});
+    return periods;
+  }
+
+  const diasData=[['Nombre','Apellidos','Puesto','Fecha alta','Fecha baja','Fuera de período']];
+  porDias.forEach(p=>{
+    const days=workerDays[p.db_id]||[];
+    const periods=groupPeriods(days);
+    periods.forEach(({alta,baja})=>{
+      const altaFuera=alta<desde||alta>hasta;
+      const bajaFuera=baja<desde||baja>hasta;
+      diasData.push([
+        p.nombre, p.ape, p.puesto,
+        alta, baja,
+        (altaFuera||bajaFuera)?'Sí':''
+      ]);
+    });
+  });
+
+  const wsDias=XLSX.utils.aoa_to_sheet(diasData);
+  wsDias['!cols']=[{wch:14},{wch:22},{wch:18},{wch:12},{wch:12},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, wsDias, 'Por días');
 
   const now=new Date();
   const fecha=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
-  csvDownload(csv,'ElNautico_Gestoria_'+desde+'_'+hasta+'.xls');
+  xlsxDownload(wb,'ElNautico_Gestoria_'+desde+'_'+hasta+'.xlsx');
 }
 
 async function genNominasExcel(){
-  const months=[{m:6,name:'Julio'},{m:7,name:'Agosto'}];
-  const NL='\n';
+  const m=parseInt(document.getElementById('nom-mes').value);
+  const mName=m===6?'Julio':'Agosto';
+  const dim=new Date(2026,m+1,0).getDate();
+  const monthDays=[];
+  for(let d=1;d<=dim;d++) monthDays.push(new Date(2026,m,d));
+  const desde=fmtD(monthDays[0]), hasta=fmtD(monthDays[monthDays.length-1]);
 
-  // Fetch all horarios_dia for jul-aug
-  const rows=await supa.get('horarios_dia',
-    'fecha=gte.2026-07-01&fecha=lte.2026-08-31').catch(()=>[]);
+  const rows=await supa.get('horarios_dia','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]);
   const modsByDate={};
-  rows.forEach(r=>{
-    if(!modsByDate[r.fecha])modsByDate[r.fecha]=[];
-    modsByDate[r.fecha].push(r);
-  });
+  rows.forEach(r=>{if(!modsByDate[r.fecha])modsByDate[r.fecha]=[];modsByDate[r.fecha].push(r);});
 
-  for(const {m,name} of months){
-    const dim=new Date(2026,m+1,0).getDate();
-    const monthDays=[];
-    for(let d=1;d<=dim;d++) monthDays.push(new Date(2026,m,d));
+  const wb=XLSX.utils.book_new();
+  const sheetData=[
+    ['El Náutico · Nóminas '+mName+' 2026'],
+    [],
+    ['Nombre','Apellidos','Puesto','Contrato','€/h','Días trabajados','Horas totales','Sueldo total (€)']
+  ];
 
-    let csv='Nombre\tApellidos\tPuesto\tContrato\t€/h\tDías trabajados\tHoras totales\tSueldo total (€)\n';
-
-    for(const p of STAFF){
-      let totalH=0,diasT=0;
-      for(const date of monthDays){
-        const k=fmtD(date);
-        const mods=modsByDate[k]||[];
-        const mod=mods.find(mm=>mm.personal_id===p.db_id);
-        let works=isAvail(p,date);
-        let h=0;
-        if(mod){
-          if(mod.estado==='eliminado'||mod.estado==='baja') works=false;
-          else if(mod.estado==='añadido') works=true;
-          if(works&&mod.slots) h=(mod.slots.length)*0.5;
-        }
-        if(works&&!h){
-          // Use base horario
-          h=calcHFromSlots(activeSlots(p.hor||''));
-        }
-        if(works&&h>0){totalH+=h;diasT++;}
+  for(const p of STAFF){
+    let totalH=0, diasT=0;
+    for(const date of monthDays){
+      const k=fmtD(date);
+      const mods=modsByDate[k]||[];
+      const mod=mods.find(mm=>mm.personal_id===p.db_id);
+      let works=isAvail(p,date);
+      let h=0;
+      if(mod){
+        if(mod.estado==='eliminado'||mod.estado==='baja') works=false;
+        else if(mod.estado==='añadido') works=true;
+        if(works&&mod.slots&&mod.slots.length) h=mod.slots.length*0.5;
       }
-      const sueldo=Math.round(totalH*(p.honorarios||0)*100)/100;
-      csv+=p.nombre+'\t'+p.ape+'\t'+p.puesto+'\t'+(fijo(p)?'Fijo':'Por días')+'\t'+(p.honorarios||0)+'\t'+diasT+'\t'+totalH+'\t'+sueldo+'\n';
+      if(works&&!h) h=calcHFromSlots(activeSlots(p.hor||''));
+      if(works&&h>0){totalH+=h;diasT++;}
     }
-
-    const now=new Date();
-    const fecha=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
-    csvDownload(csv,'ElNautico_Nominas_'+name+'_2026.xls');
+    const sueldo=Math.round(totalH*(p.honorarios||0)*100)/100;
+    sheetData.push([
+      p.nombre, p.ape, p.puesto,
+      fijo(p)?'Fijo':'Por días',
+      p.honorarios||0,
+      diasT, totalH, sueldo
+    ]);
   }
+
+  // Totals row
+  const dataStart=4, dataEnd=3+STAFF.length;
+  sheetData.push([
+    'TOTAL','','','','',
+    '=SUM(F'+dataStart+':F'+dataEnd+')',
+    '=SUM(G'+dataStart+':G'+dataEnd+')',
+    '=SUM(H'+dataStart+':H'+dataEnd+')'
+  ]);
+
+  const ws=XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols']=[{wch:14},{wch:22},{wch:18},{wch:10},{wch:6},{wch:14},{wch:14},{wch:16}];
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}]; // Merge title
+  XLSX.utils.book_append_sheet(wb, ws, mName+' 2026');
+
+  xlsxDownload(wb,'ElNautico_Nominas_'+mName+'_2026.xlsx');
 }
 
 
