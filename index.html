@@ -1232,8 +1232,11 @@ async function genGestoriaExcel(){
   if(!desde||!hasta){alert('Selecciona fecha de inicio y fin');return;}
   if(desde>hasta){alert('La fecha de inicio debe ser anterior a la fecha fin');return;}
 
+  function fmtEs(d){if(!d)return'—';const[y,m,dd]=d.split('-');return dd+'/'+m+'/'+y;}
+
   const rangeDays=[];
-  for(let d=new Date(d1);d<=d2;d.setDate(d.getDate()+1)) rangeDays.push(new Date(d));
+  for(let d=new Date(desde+'T00:00:00');d<=new Date(hasta+'T00:00:00');d.setDate(d.getDate()+1))
+    rangeDays.push(new Date(d));
 
   const rows=await supa.get('horarios_dia','fecha=gte.'+desde+'&fecha=lte.'+hasta).catch(()=>[]);
   const modsByDate={};
@@ -1297,7 +1300,6 @@ async function genGestoriaExcel(){
     });
   });
 
-  function fmtEs(d){const[y,m,dd]=d.split('-');return dd+'/'+m+'/'+y;}
   const tableHtml=`
     <p class="title">El Náutico · Informe Gestoría · ${fmtEs(desde)} a ${fmtEs(hasta)}</p>
     <p style="margin-bottom:16px;color:#d42020;font-size:10pt">* Las fechas en rojo están fuera del período de análisis</p>
