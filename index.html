@@ -670,10 +670,12 @@ async function buildDay(date){
           added:true, deleted:false
         });
       } else if(existing&&p){
-        // Already in base list (was available that day) — mark as modified not added
+        // Already in base list but has an 'añadido' DB record (e.g. added with different hours)
+        // Mark as added=true so if removed, the DB record gets deleted not set to 'eliminado'
         existing.slots=new Set((mod.slots||[]).map(Number));
         existing.entrada=mod.entrada;
         existing.salida=mod.salida;
+        existing.added=true;
       }
     } else if(existing){
       // Modified horario
@@ -1131,18 +1133,33 @@ function askRemoveWEl(el){
   }
   bajaBtn.textContent='Baja médica';
   bajaBtn.onclick=()=>{
-    document.getElementById('dlg').style.display='none';
-    dlgCb=null;
+    document.getElementById('dlg').style.display='none';dlgCb=null;
+    const pb=document.getElementById('dlg-baja');if(pb)pb.remove();
+    const pv=document.getElementById('dlg-vac');if(pv)pv.remove();
     const a=(dayData[k]||[]).find(x=>x.id===id);
     if(a){
-      if(a.added){
-        // Added worker on baja: delete from DB entirely
-        supa.delete('horarios_dia','fecha=eq.'+k+'%26personal_id=eq.'+a.db_id).catch(e=>console.error(e));
-        dayData[k]=(dayData[k]||[]).filter(x=>x.id!==id);
-      } else {
-        a.deleted=true;a.baja=true;
-        saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,'baja');
-      }
+      if(a.added){supa.delete('horarios_dia','fecha=eq.'+k+'%26personal_id=eq.'+a.db_id).catch(e=>console.error(e));dayData[k]=(dayData[k]||[]).filter(x=>x.id!==id);}
+      else{a.deleted=true;a.baja=true;a.vacaciones=false;saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,'baja');}
+    }
+    renderDayView();
+  };
+  // Vacaciones button
+  let vacBtn=document.getElementById('dlg-vac');
+  if(!vacBtn){
+    vacBtn=document.createElement('button');
+    vacBtn.id='dlg-vac';vacBtn.className='dialog-cancel';
+    vacBtn.style.cssText='background:#e6f4ea;color:#18a050;border:0.5px solid #18a050';
+    document.querySelector('.dialog-btns').insertBefore(vacBtn,bajaBtn);
+  }
+  vacBtn.textContent='Vacaciones';
+  vacBtn.onclick=()=>{
+    document.getElementById('dlg').style.display='none';dlgCb=null;
+    const pb=document.getElementById('dlg-baja');if(pb)pb.remove();
+    const pv=document.getElementById('dlg-vac');if(pv)pv.remove();
+    const a=(dayData[k]||[]).find(x=>x.id===id);
+    if(a){
+      if(a.added){supa.delete('horarios_dia','fecha=eq.'+k+'%26personal_id=eq.'+a.db_id).catch(e=>console.error(e));dayData[k]=(dayData[k]||[]).filter(x=>x.id!==id);}
+      else{a.deleted=true;a.baja=false;a.vacaciones=true;saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,'vacaciones');}
     }
     renderDayView();
   };
