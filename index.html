@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v2.3</title>
+<title>El Náutico · Gestión v2.4</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -1064,8 +1064,15 @@ function renderDayView(){
     const h=parseInt((a.entrada||'0').split('/')[0].split(':')[0]);
     return h>=17||h<8;
   }
-  const srtDay=srt.filter(a=>!isEveWorker(a));
-  const srtEve=srt.filter(a=>isEveWorker(a));
+  const srtNautico=srt.filter(a=>(a.zona||'nautico')==='nautico');
+  const srtCoc=srt.filter(a=>a.zona==='cocteleria');
+  const srtOtro=srt.filter(a=>a.zona==='otro');
+  const srtDay=srtNautico.filter(a=>!isEveWorker(a));
+  const srtEve=srtNautico.filter(a=>isEveWorker(a));
+  const srtCocDay=srtCoc.filter(a=>!isEveWorker(a));
+  const srtCocEve=srtCoc.filter(a=>isEveWorker(a));
+  const srtOtroDay=srtOtro.filter(a=>!isEveWorker(a));
+  const srtOtroEve=srtOtro.filter(a=>isEveWorker(a));
 
   function buildRows(workers){
     return workers.map(a=>{
@@ -1133,6 +1140,13 @@ function renderDayView(){
 
   const rowsDay=buildRows(srtDay);
   const rowsEve=buildRows(srtEve);
+  const rowsCocDay=buildRows(srtCocDay);
+  const rowsCocEve=buildRows(srtCocEve);
+  const rowsOtroDay=buildRows(srtOtroDay);
+  const rowsOtroEve=buildRows(srtOtroEve);
+  const totalCellsNautico=buildTotalCells([...srtDay,...srtEve]);
+  const totalCellsCoc=buildTotalCells([...srtCocDay,...srtCocEve]);
+  const totalCellsOtro=buildTotalCells([...srtOtroDay,...srtOtroEve]);
   const totalCellsAll=buildTotalCells(srt);
   const halfCount=HALF_SLOTS.length;
   // Repeated hour header row for tbody-eve (non-sticky, same visual)
@@ -1230,10 +1244,24 @@ function renderDayView(){
           </tbody>
           <tbody id="tbody-total">
             <tr class="tr-total">
-              <td class="td-name" style="position:sticky;left:0;background:var(--bg3);z-index:1;border-right:0.5px solid var(--border2);color:var(--text2);border-top:2px solid var(--border2)">Personas/h</td>
-              ${totalCellsAll}
+              <td class="td-name" style="position:sticky;left:0;background:var(--bg3);z-index:1;border-right:0.5px solid var(--border2);color:var(--text2);border-top:2px solid var(--border2)">Personas/h El Náutico</td>
+              ${totalCellsNautico}
               <td class="td-total" style="border-top:2px solid var(--border2)"></td>
             </tr>
+            ${srtCoc.length?`
+            <tr><td class="td-name" colspan="1" style="position:sticky;left:0;z-index:2;background:#f3e8ff;border-right:0.5px solid var(--border2);border-top:3px solid #7020c8;font-size:10px;font-weight:700;color:#7020c8;letter-spacing:.05em;text-transform:uppercase;padding:3px 6px">🍸 Coctelería</td><td colspan="${halfCount}" style="background:#f3e8ff;border-top:3px solid #7020c8"></td><td class="td-total" style="background:#f3e8ff;border-top:3px solid #7020c8"></td></tr>
+            <tr>${hourHeadersRow}</tr>
+            ${rowsCocDay}
+            ${srtCocEve.length?`<tr><td class="td-name" colspan="1" style="position:sticky;left:0;z-index:2;background:#f3e8ff;border-right:0.5px solid var(--border2);border-top:1px solid #7020c8;font-size:10px;font-weight:600;color:#7020c8;padding:3px 6px">Turno de tarde</td><td colspan="${halfCount}" style="background:#f3e8ff;border-top:1px solid #7020c8"></td><td class="td-total" style="background:#f3e8ff;border-top:1px solid #7020c8"></td></tr><tr>${hourHeadersRow}</tr>${rowsCocEve}`:''}
+            <tr class="tr-total" style="background:#f3e8ff"><td class="td-name" style="position:sticky;left:0;background:#f3e8ff;z-index:1;border-right:0.5px solid var(--border2);border-top:1px solid #7020c8;color:#7020c8">Personas/h Coctelería</td>${totalCellsCoc}<td class="td-total" style="border-top:1px solid #7020c8"></td></tr>
+            `:''}
+            ${srtOtro.length?`
+            <tr><td class="td-name" colspan="1" style="position:sticky;left:0;z-index:2;background:#e8f8f8;border-right:0.5px solid var(--border2);border-top:3px solid #10a8a0;font-size:10px;font-weight:700;color:#10a8a0;letter-spacing:.05em;text-transform:uppercase;padding:3px 6px">🏠 El Otro</td><td colspan="${halfCount}" style="background:#e8f8f8;border-top:3px solid #10a8a0"></td><td class="td-total" style="background:#e8f8f8;border-top:3px solid #10a8a0"></td></tr>
+            <tr>${hourHeadersRow}</tr>
+            ${rowsOtroDay}
+            ${srtOtroEve.length?`<tr><td class="td-name" colspan="1" style="position:sticky;left:0;z-index:2;background:#e8f8f8;border-right:0.5px solid var(--border2);border-top:1px solid #10a8a0;font-size:10px;font-weight:600;color:#10a8a0;padding:3px 6px">Turno de tarde</td><td colspan="${halfCount}" style="background:#e8f8f8;border-top:1px solid #10a8a0"></td><td class="td-total" style="background:#e8f8f8;border-top:1px solid #10a8a0"></td></tr><tr>${hourHeadersRow}</tr>${rowsOtroEve}`:''}
+            <tr class="tr-total" style="background:#e8f8f8"><td class="td-name" style="position:sticky;left:0;background:#e8f8f8;z-index:1;border-right:0.5px solid var(--border2);border-top:1px solid #10a8a0;color:#10a8a0">Personas/h El Otro</td>${totalCellsOtro}<td class="td-total" style="border-top:1px solid #10a8a0"></td></tr>
+            `:''}
           </tbody>
         </table>
       </div>
