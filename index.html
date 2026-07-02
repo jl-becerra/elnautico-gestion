@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v1.8</title>
+<title>El Náutico · Gestión v1.9</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -858,6 +858,27 @@ function changeMonth(d){
 
 // ── CALENDARIO ──
 
+
+function confirmPastSync(){
+  return confirm('🚨 DÍA PASADO\n\nEstás modificando un día que ya ha pasado.\n¿Seguro que quieres continuar?');
+}
+function confirmPast(){
+  return new Promise(resolve=>{
+    const overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(180,0,0,0.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML='<div style="background:#fff;border-radius:12px;padding:24px;max-width:320px;width:100%;border-top:6px solid #d42020">'
+      +'<div style="font-size:20px;margin-bottom:8px">🚨</div>'
+      +'<div style="font-size:15px;font-weight:700;color:#d42020;margin-bottom:8px">Día pasado</div>'
+      +'<div style="font-size:13px;color:#444;margin-bottom:16px">Estás modificando un día que ya ha pasado. Esta acción quedará registrada.</div>'
+      +'<div style="display:flex;flex-direction:column;gap:8px">'
+      +'<button id="pp-ok" style="padding:10px;background:#d42020;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">Continuar de todos modos</button>'
+      +'<button id="pp-cancel" style="padding:10px;background:#f5f5f7;border:0.5px solid #ccc;border-radius:8px;color:#444;font-size:14px;cursor:pointer">Cancelar</button>'
+      +'</div></div>';
+    document.body.appendChild(overlay);
+    overlay.querySelector('#pp-ok').onclick=()=>{document.body.removeChild(overlay);resolve(true);};
+    overlay.querySelector('#pp-cancel').onclick=()=>{document.body.removeChild(overlay);resolve(false);};
+  });
+}
 // ── FECHA HOY ────────────────────────────────────────────────────
 function todayStr(){
   const d=new Date();
@@ -965,11 +986,9 @@ function horRow(a,k,h){
   return out;
 }
 
-function askUpdHorEl(inputEl){
+async function askUpdHorEl(inputEl){
   const k=inputEl.dataset.k;
-  if(isPast(k)){
-    if(!confirm('⚠️ Estás modificando el horario de un día pasado. ¿Continuar?'))return;
-  }
+  if(isPast(k)){if(!await confirmPast())return;}
   const id=parseInt(inputEl.dataset.id);
   const field=inputEl.dataset.f;
   const fi=parseInt(inputEl.dataset.fi||'0');
@@ -1213,13 +1232,11 @@ function renderDayView(){
 // drawHourAxis removed — using sticky thead instead
 
 // ── ACCIONES CON CONFIRMACIÓN ──
-function askToggleSlotEl(btn,adding){
+async function askToggleSlotEl(btn,adding){
   const k=btn.dataset.k;const id=parseInt(btn.dataset.id);
   const slot=parseInt(btn.dataset.slot);
   const t1=btn.dataset.t1;const t2=btn.dataset.t2;
-  if(isPast(k)){
-    if(!confirm('⚠️ Estás modificando un día pasado. ¿Continuar?'))return;
-  }
+  if(isPast(k)){if(!await confirmPast())return;}
   const p=STAFF.find(x=>x.id===id);
   const name=p?p.nombre:'';
   const msg=adding?'Añadir la media hora de '+t1+'–'+t2+' a '+name+'?':'Quitar la media hora de '+t1+'–'+t2+' a '+name+'?';
@@ -1236,11 +1253,9 @@ function askToggleSlotEl(btn,adding){
 
 
 
-function askRemoveWEl(el){
+async function askRemoveWEl(el){
   const k=el.dataset.k;const id=parseInt(el.dataset.id);const nombre=el.dataset.name||'';
-  if(isPast(k)){
-    if(!confirm('⚠️ Estás modificando un día pasado. ¿Continuar?'))return;
-  }
+  if(isPast(k)){if(!await confirmPast())return;}
   // Custom two-option dialog
   document.getElementById('dlg-title').textContent='Quitar del día';
   document.getElementById('dlg-msg').textContent='¿Qué quieres hacer con '+nombre+' en este día?';
@@ -1318,10 +1333,8 @@ function restoreWEl(el){
   });
 }
 
-function askAddWorkerByName(k){
-  if(isPast(k)){
-    if(!confirm('⚠️ Estás añadiendo a un trabajador en un día pasado. ¿Continuar?'))return;
-  }
+async function askAddWorkerByName(k){
+  if(isPast(k)){if(!await confirmPast())return;}
   const input=document.getElementById('add-sel-input');
   if(!input)return;
   const val=input.value.trim().toLowerCase();
@@ -2198,6 +2211,7 @@ async function mihActionDay(k,id,action){
   if(typeof id!=='number') id=parseInt(id);
   const p=STAFF.find(x=>x.id===id);
   if(!p)return;
+  if(isPast(k)&&!await confirmPast())return;
   const slots=activeSlots(p.hor||'');
   const ent=p.hor?p.hor.split('-')[0]:'';
   const sal=p.hor?p.hor.split('-').slice(1).join('-'):'';
