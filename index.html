@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v1.6</title>
+<title>El Náutico · Gestión v1.7</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -194,6 +194,101 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .pwd-err{color:#d42020;font-size:13px;font-weight:600;min-height:20px}
 .pwd-change{font-size:12px;color:#7a6000;text-decoration:underline;cursor:pointer;background:none;border:none;margin-top:8px}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
+// ── BACKUP / RESTORE ─────────────────────────────────────────────
+async function exportBackupExcel(){
+  const status=document.getElementById('backup-status');
+  status.textContent='Cargando datos...';
+  try{
+    const [personal, horarios] = await Promise.all([
+      supa.get('personal','order=id.asc'),
+      supa.get('horarios_dia','order=id.asc')
+    ]);
+    const wb=XLSX.utils.book_new();
+    // Sheet 1: personal
+    const pHeaders=['id','nombre','apellidos','alias','puesto','categoria','zona',
+      'eficiencia','honorarios','horas_sem','horas_dia','dias_trabajo','horario',
+      'fecha_inicio','fecha_fin','color_idx'];
+    const pRows=personal.map(p=>pHeaders.map(h=>{
+      const v=p[h];
+      return Array.isArray(v)?JSON.stringify(v):v??'';
+    }));
+    const wsP=XLSX.utils.aoa_to_sheet([pHeaders,...pRows]);
+    wsP['!cols']=pHeaders.map(()=>({wch:16}));
+    XLSX.utils.book_append_sheet(wb,wsP,'personal');
+    // Sheet 2: horarios_dia
+    const hHeaders=['id','fecha','personal_id','entrada','salida','slots','estado','created_at','updated_at'];
+    const hRows=horarios.map(h=>hHeaders.map(k=>{
+      const v=h[k];
+      return Array.isArray(v)?JSON.stringify(v):v??'';
+    }));
+    const wsH=XLSX.utils.aoa_to_sheet([hHeaders,...hRows]);
+    wsH['!cols']=hHeaders.map(()=>({wch:16}));
+    XLSX.utils.book_append_sheet(wb,wsH,'horarios_dia');
+    // Download
+    const now=new Date();
+    const fecha=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+    const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    const blob=new Blob([wbout],{type:'application/octet-stream'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download='ElNautico_Backup_'+fecha+'.xlsx';
+    document.body.appendChild(a);a.click();
+    document.body.removeChild(a);URL.revokeObjectURL(url);
+    status.textContent='✅ Backup exportado correctamente ('+personal.length+' trabajadores, '+horarios.length+' registros de horarios)';
+  }catch(e){
+    status.textContent='❌ Error: '+e.message;
+    console.error(e);
+  }
+}
+
+async function importBackupExcel(input){
+  const status=document.getElementById('backup-status');
+  const file=input.files[0];
+  if(!file)return;
+  if(!confirm('⚠️ ATENCIÓN: Esto reemplazará TODA la base de datos con los datos del backup. Esta acción no se puede deshacer. ¿Seguro que quieres continuar?')){
+    input.value='';return;
+  }
+  status.textContent='Leyendo archivo...';
+  try{
+    const data=await file.arrayBuffer();
+    const wb=XLSX.read(data,{type:'array'});
+    // Parse personal sheet
+    const wsP=wb.Sheets['personal'];
+    if(!wsP)throw new Error('No se encontró la hoja "personal"');
+    const personal=XLSX.utils.sheet_to_json(wsP);
+    // Parse horarios_dia sheet
+    const wsH=wb.Sheets['horarios_dia'];
+    if(!wsH)throw new Error('No se encontró la hoja "horarios_dia"');
+    const horarios=XLSX.utils.sheet_to_json(wsH);
+    status.textContent='Borrando datos existentes...';
+    // Delete all horarios_dia first (FK constraint)
+    await supa.delete('horarios_dia','id=gte.0');
+    await supa.delete('personal','id=gte.0');
+    status.textContent='Importando personal ('+personal.length+' registros)...';
+    // Insert personal
+    for(const p of personal){
+      // Parse array fields
+      if(typeof p.horas_dia==='string') try{p.horas_dia=JSON.parse(p.horas_dia);}catch(e){p.horas_dia=[];}
+      if(typeof p.dias_trabajo==='string') try{p.dias_trabajo=JSON.parse(p.dias_trabajo);}catch(e){p.dias_trabajo=[];}
+      await supa.post('personal',p);
+    }
+    status.textContent='Importando horarios ('+horarios.length+' registros)...';
+    // Insert horarios_dia in batches
+    for(const h of horarios){
+      if(typeof h.slots==='string') try{h.slots=JSON.parse(h.slots);}catch(e){h.slots=[];}
+      await supa.post('horarios_dia',h);
+    }
+    status.textContent='✅ Restauración completada. Recarga la página para ver los cambios.';
+    input.value='';
+  }catch(e){
+    status.textContent='❌ Error en la restauración: '+e.message;
+    console.error(e);
+    input.value='';
+  }
+}
+
+</script>
 </head>
 <body>
 <div id="pwd-screen" class="pwd-screen">
@@ -262,6 +357,17 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
           </select>
         </div>
         <button class="gen-btn green" onclick="genNominasExcel()">↓ Generar Excel nóminas</button>
+      </div>
+
+      <div class="inf-card" style="border-color:#7020c8">
+        <div class="inf-card-title" style="color:#7020c8">Copia de seguridad</div>
+        <div class="inf-card-desc">Exporta toda la base de datos a Excel, o restaura desde un backup previo.</div>
+        <button class="gen-btn" style="background:#7020c8;color:#fff" onclick="exportBackupExcel()">↓ Exportar backup completo</button>
+        <div style="margin-top:8px">
+          <input type="file" id="backup-file" accept=".xlsx,.xls" style="display:none" onchange="importBackupExcel(this)">
+          <button class="gen-btn" style="background:#fff;color:#7020c8;border:1px solid #7020c8" onclick="document.getElementById('backup-file').click()">↑ Restaurar desde backup</button>
+        </div>
+        <div id="backup-status" style="font-size:12px;color:var(--text2);margin-top:8px"></div>
       </div>
     </div>
 
@@ -751,6 +857,14 @@ function changeMonth(d){
 }
 
 // ── CALENDARIO ──
+
+// ── FECHA HOY ────────────────────────────────────────────────────
+function todayStr(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function isPast(dateStr){ return dateStr < todayStr(); }
+
 function renderCal(){
   document.getElementById('month-label').textContent=`${MONTHS[curMonth.getMonth()]} ${curMonth.getFullYear()}`;
   const g=document.getElementById('cal-grid');g.innerHTML='';
@@ -853,6 +967,9 @@ function horRow(a,k,h){
 
 function askUpdHorEl(inputEl){
   const k=inputEl.dataset.k;
+  if(isPast(k)){
+    if(!confirm('⚠️ Estás modificando el horario de un día pasado. ¿Continuar?'))return;
+  }
   const id=parseInt(inputEl.dataset.id);
   const field=inputEl.dataset.f;
   const fi=parseInt(inputEl.dataset.fi||'0');
@@ -1118,6 +1235,9 @@ function askToggleSlotEl(btn,adding){
 
 function askRemoveWEl(el){
   const k=el.dataset.k;const id=parseInt(el.dataset.id);const nombre=el.dataset.name||'';
+  if(isPast(k)){
+    if(!confirm('⚠️ Estás modificando un día pasado. ¿Continuar?'))return;
+  }
   // Custom two-option dialog
   document.getElementById('dlg-title').textContent='Quitar del día';
   document.getElementById('dlg-msg').textContent='¿Qué quieres hacer con '+nombre+' en este día?';
@@ -1196,6 +1316,9 @@ function restoreWEl(el){
 }
 
 function askAddWorkerByName(k){
+  if(isPast(k)){
+    if(!confirm('⚠️ Estás añadiendo a un trabajador en un día pasado. ¿Continuar?'))return;
+  }
   const input=document.getElementById('add-sel-input');
   if(!input)return;
   const val=input.value.trim().toLowerCase();
@@ -1728,6 +1851,7 @@ function openWorkerForm(idx){
     +[1,2,3].map(n=>'<option value="'+n+'"'+(p&&p.eficiencia===n?' selected':'')+'>'+n+'</option>').join('')
     +'</select></div>'
     +'<div class="form-group"><label class="form-label">Honorarios €/h</label><input class="form-input" id="f-honorarios" type="number" min="0" step="0.5" value="'+(p&&p.honorarios?p.honorarios:'')+'" placeholder="€/h"></div>'
+    +'<div class="form-group"><label class="form-label">Efectivo desde (honorarios)</label><input class="form-input" id="f-honorarios-desde" type="date" value="'+todayStr()+'" style="font-size:13px"></div>'
     +'</div>'
     // Fechas
     +'<div class="form-row">'
@@ -1826,6 +1950,7 @@ function saveWorker(){
     zona: puestoVal,
     eficiencia: parseInt(document.getElementById('f-eficiencia').value),
     honorarios: parseFloat(document.getElementById('f-honorarios').value)||0,
+    honorariosDesde: document.getElementById('f-honorarios-desde').value||todayStr(),
     hSem, horasDia, dias,
     inicio: document.getElementById('f-inicio').value,
     fin: document.getElementById('f-fin').value,
@@ -1837,9 +1962,21 @@ function saveWorker(){
     false,
     ()=>{
       if(editingIdx!==null){
-        // Update in DB
         const dbId=adminStaff[editingIdx].db_id;
+        const oldWorker=adminStaff[editingIdx];
+        const today=todayStr();
+        // Check if horario changed
+        const horChanged=oldWorker.hor!==worker.hor;
+        // Check if dias changed
+        const diasChanged=JSON.stringify(oldWorker.dias)!==JSON.stringify(worker.dias);
+        // Update personal table
         supa.patch('personal','id=eq.'+dbId, staffToDb(worker)).catch(e=>console.error(e));
+        // If horario or dias changed, delete future horarios_dia so they recalculate from new base
+        if(horChanged||diasChanged){
+          supa.delete('horarios_dia','personal_id=eq.'+dbId+'&fecha=gte.'+today).catch(e=>console.error(e));
+          // Clear future day cache
+          Object.keys(dayData).forEach(k=>{ if(k>=today){ delete dayData[k]; delete dayOrig[k]; delete dayStale[k]; }});
+        }
         worker.db_id=dbId;
         adminStaff[editingIdx]=worker;STAFF[editingIdx]=worker;
       } else {
