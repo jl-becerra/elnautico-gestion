@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v2.1</title>
+<title>El Náutico · Gestión v2.3</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -536,6 +536,7 @@ function dbToStaff(p) {
     nombre: p.nombre,
     ape: p.apellidos,
     alias: p.alias||p.nombre,
+    zona_base: p.zona_base||'nautico',
     puesto: p.puesto,
     categoria: p.categoria,
     zona: p.zona,
@@ -557,6 +558,7 @@ function staffToDb(p) {
     nombre: p.nombre,
     apellidos: p.ape,
     alias: p.alias||p.nombre,
+    zona_base: p.zona_base||'nautico',
     puesto: p.puesto,
     categoria: p.categoria || p.puesto,
     zona: p.zona || '',
@@ -568,7 +570,8 @@ function staffToDb(p) {
     horario: p.hor || '',
     fecha_inicio: p.inicio || null,
     fecha_fin: p.fin || null,
-    color_idx: p.id
+    color_idx: p.id,
+    zona_base: p.zona_base||'nautico'
   };
 }
 
@@ -752,12 +755,11 @@ async function buildDay(date){
 
   // Base workers from STAFF
   const base=STAFF.filter(p=>isAvail(p,date)).map(p=>{
-    // Use full hor string for split shifts (e.g. "12:00/19:00-17:00/22:00")
     const hor=p.hor||'';
     const dashIdx=hor.indexOf('-');
     const entrada=dashIdx>=0?hor.substring(0,dashIdx):'';
     const salida=dashIdx>=0?hor.substring(dashIdx+1):'';
-    return{id:p.id,db_id:p.db_id,entrada,salida,slots:activeSlots(hor),added:false,deleted:false};
+    return{id:p.id,db_id:p.db_id,entrada,salida,slots:activeSlots(hor),added:false,deleted:false,zona:p.zona_base||'nautico'};
   });
 
   // Store originals (unmodified) — slots must be a real Set
@@ -1885,6 +1887,12 @@ function openWorkerForm(idx){
     +'<div class="form-group"><label class="form-label">Apellidos</label><input class="form-input" id="f-ape" value="'+(p?p.ape:'')+'" placeholder="Apellidos"></div>'
     +'</div>'
     +'<div class="form-group"><label class="form-label">Alias (nombre en el bar)</label><input class="form-input" id="f-alias" value="'+(p?p.alias||'':'')+'" placeholder="Ej: Vasco, Sheilu, Kike..."></div>'
+    +'<div class="form-group"><label class="form-label">Zona / Negocio base</label>'
+    +'<select class="form-input" id="f-zona-base">'
+    +'<option value="nautico"'+((!p||!p.zona_base||p.zona_base==='nautico')?' selected':'')+'>El Náutico</option>'
+    +'<option value="cocteleria"'+(p&&p.zona_base==='cocteleria'?' selected':'')+'>Coctelería</option>'
+    +'<option value="otro"'+(p&&p.zona_base==='otro'?' selected':'')+'>El Otro</option>'
+    +'</select></div>'
     // Categoría / Puesto
     +'<div class="form-row">'
     +'<div class="form-group"><label class="form-label">Categoría</label>'
@@ -1991,6 +1999,7 @@ function saveWorker(){
   const hSem=calcTotalHoras(horasDia);
   const hor=formShifts.map(s=>s.entrada).join('/')+'-'+formShifts.map(s=>s.salida).join('/');
   const alias_val=document.getElementById('f-alias').value.trim()||nombre;
+  const zona_base_val=document.getElementById('f-zona-base').value||'nautico';
   const catSel=document.getElementById('f-cat');
   const catCustom=document.getElementById('f-cat-custom').value.trim();
   const puestoSel=document.getElementById('f-puesto');
@@ -2003,6 +2012,7 @@ function saveWorker(){
     id: editingIdx!==null?adminStaff[editingIdx].id:Date.now()%10000+100,
     nombre, ape,
     alias: alias_val,
+    zona_base: zona_base_val,
     puesto: catVal,
     zona: puestoVal,
     eficiencia: parseInt(document.getElementById('f-eficiencia').value),
@@ -2188,7 +2198,11 @@ function mihRenderCal(){
     } else if(works){
       bg=color+'22';numColor=isWE?'var(--accent)':'var(--text)';
       const dotColor=hasChange?'#d42020':'#18a050';
-      dot='<div style="width:6px;height:6px;border-radius:50%;background:'+dotColor+';margin:2px auto 0"></div>';
+      const zonaD=mod?mod.zona||'nautico':p.zona_base||'nautico';
+      const zonaLetterD=zonaD!=='nautico'
+        ?'<div style="font-size:9px;font-weight:700;color:'+(zonaD==='cocteleria'?'#7020c8':'#10a8a0')+';line-height:1;margin-top:1px">'+(zonaD==='cocteleria'?'K':'O')+'</div>'
+        :'';
+      dot='<div style="width:6px;height:6px;border-radius:50%;background:'+dotColor+';margin:2px auto 0"></div>'+zonaLetterD;
     } else {bg='var(--bg2)';numColor=isWE?'var(--accent)':'var(--text2)';}
     const border=(works||isVac||isBaja||isElim)&&!isSel?'0.5px solid '+color+'55':'0.5px solid var(--border)';
     html+='<div onclick="mihSelectDay(new Date('+year+','+mihMonth+','+d+'))" style="position:relative;border-radius:8px;background:'+bg+';border:'+border+';padding:6px 2px;text-align:center;cursor:pointer;min-height:46px;overflow:hidden">'
@@ -2225,7 +2239,11 @@ async function mihSelectDay(date){
   } else {
     const hor=mod&&mod.slots&&mod.slots.length?(()=>{const s=slotsToHorario(new Set(mod.slots.map(Number)));return s.entrada+'-'+s.salida;})():p.hor;
     const shifts=parseShifts(hor);
-    bodyHtml=shifts.map(s=>'<div class="shift-block"><div class="shift-color" style="background:'+BC[p.id%26]+'"></div>'
+    const zonaEf=mod?mod.zona||'nautico':p.zona_base||'nautico';
+    const zonaLbl=zonaEf!=='nautico'
+      ?'<div style="display:inline-block;padding:2px 10px;border-radius:12px;background:'+(zonaEf==='cocteleria'?'#7020c8':'#10a8a0')+';color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">'+(zonaEf==='cocteleria'?'🍸 Coctelería':'🏠 El Otro')+'</div>'
+      :'';
+    bodyHtml=zonaLbl+shifts.map(s=>'<div class="shift-block"><div class="shift-color" style="background:'+BC[p.id%26]+'"></div>'
       +'<div class="shift-info"><div class="shift-time">'+s.entrada+' – '+s.salida+'</div>'
       +'<div class="shift-hours">'+calcH(s.entrada,s.salida)+' horas</div></div></div>').join('');
   }
