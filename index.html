@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v2.5</title>
+<title>El Náutico · Gestión v2.6</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -1249,17 +1249,17 @@ function renderDayView(){
               <td class="td-total" style="border-top:2px solid var(--border2)"></td>
             </tr>
             ${srtCoc.length?`
+            <tr><td colspan="${halfCount+2}" style="height:10px;background:var(--bg);border:none"></td></tr>
             <tr><td class="td-name" colspan="1" style="position:sticky;left:0;z-index:2;background:#f3e8ff;border-right:0.5px solid var(--border2);border-top:3px solid #7020c8;font-size:10px;font-weight:700;color:#7020c8;letter-spacing:.05em;text-transform:uppercase;padding:3px 6px">🍸 Coctelería</td><td colspan="${halfCount}" style="background:#f3e8ff;border-top:3px solid #7020c8"></td><td class="td-total" style="background:#f3e8ff;border-top:3px solid #7020c8"></td></tr>
             <tr>${hourHeadersRow}</tr>
-            ${rowsCocDay}
-            ${srtCocEve.length?`<tr><td class="td-name" colspan="1" style="position:sticky;left:0;z-index:2;background:#f3e8ff;border-right:0.5px solid var(--border2);border-top:1px solid #7020c8;font-size:10px;font-weight:600;color:#7020c8;padding:3px 6px">Turno de tarde</td><td colspan="${halfCount}" style="background:#f3e8ff;border-top:1px solid #7020c8"></td><td class="td-total" style="background:#f3e8ff;border-top:1px solid #7020c8"></td></tr><tr>${hourHeadersRow}</tr>${rowsCocEve}`:''}
+            ${[...rowsCocDay,...(srtCocEve.length?[rowsCocEve]:[])].join('')}
             <tr class="tr-total" style="background:#f3e8ff"><td class="td-name" style="position:sticky;left:0;background:#f3e8ff;z-index:1;border-right:0.5px solid var(--border2);border-top:1px solid #7020c8;color:#7020c8">Personas/h Coctelería</td>${totalCellsCoc}<td class="td-total" style="border-top:1px solid #7020c8"></td></tr>
             `:''}
             ${srtOtro.length?`
+            <tr><td colspan="${halfCount+2}" style="height:10px;background:var(--bg);border:none"></td></tr>
             <tr><td class="td-name" colspan="1" style="position:sticky;left:0;z-index:2;background:#e8f8f8;border-right:0.5px solid var(--border2);border-top:3px solid #10a8a0;font-size:10px;font-weight:700;color:#10a8a0;letter-spacing:.05em;text-transform:uppercase;padding:3px 6px">🏠 El Otro</td><td colspan="${halfCount}" style="background:#e8f8f8;border-top:3px solid #10a8a0"></td><td class="td-total" style="background:#e8f8f8;border-top:3px solid #10a8a0"></td></tr>
             <tr>${hourHeadersRow}</tr>
-            ${rowsOtroDay}
-            ${srtOtroEve.length?`<tr><td class="td-name" colspan="1" style="position:sticky;left:0;z-index:2;background:#e8f8f8;border-right:0.5px solid var(--border2);border-top:1px solid #10a8a0;font-size:10px;font-weight:600;color:#10a8a0;padding:3px 6px">Turno de tarde</td><td colspan="${halfCount}" style="background:#e8f8f8;border-top:1px solid #10a8a0"></td><td class="td-total" style="background:#e8f8f8;border-top:1px solid #10a8a0"></td></tr><tr>${hourHeadersRow}</tr>${rowsOtroEve}`:''}
+            ${[...rowsOtroDay,...(srtOtroEve.length?[rowsOtroEve]:[])].join('')}
             <tr class="tr-total" style="background:#e8f8f8"><td class="td-name" style="position:sticky;left:0;background:#e8f8f8;z-index:1;border-right:0.5px solid var(--border2);border-top:1px solid #10a8a0;color:#10a8a0">Personas/h El Otro</td>${totalCellsOtro}<td class="td-total" style="border-top:1px solid #10a8a0"></td></tr>
             `:''}
           </tbody>
@@ -1411,10 +1411,11 @@ async function askAddWorkerByName(k){
     const entrada=pts[0]||'';const salida=pts[1]||'';
     const slts=activeSlots(entrada,salida);
     const origSlotsSet=new Set(slts);
-    dayData[k].push({id:p.id,db_id:p.db_id,entrada,salida,slots:slts,added:true,deleted:false,origSlots:origSlotsSet});
+    const zonaAdd=p.zona_base||'nautico';
+    dayData[k].push({id:p.id,db_id:p.db_id,entrada,salida,slots:slts,added:true,deleted:false,origSlots:origSlotsSet,zona:zonaAdd});
     if(!dayOrig[k])dayOrig[k]=[];
-    dayOrig[k].push({id:p.id,db_id:p.db_id,entrada,salida,slots:origSlotsSet,added:true,deleted:false});
-    saveDayAssignment(k,p.db_id,entrada,salida,slts,'añadido');
+    dayOrig[k].push({id:p.id,db_id:p.db_id,entrada,salida,slots:origSlotsSet,added:true,deleted:false,zona:zonaAdd});
+    saveDayAssignment(k,p.db_id,entrada,salida,slts,'añadido',zonaAdd);
     showAdd=false;renderDayView();
   });
 }
@@ -1585,13 +1586,13 @@ async function genNominasExcel(){
       let works=isAvail(p,date);
       let h=0;
       let isVac=false;
-      let zona='nautico';
+      let zona=p.zona_base||'nautico';
       if(mod){
         if(mod.estado==='eliminado'||mod.estado==='baja') works=false;
         else if(mod.estado==='vacaciones'){works=true;isVac=true;}
         else if(mod.estado==='añadido') works=true;
         if(works&&mod.slots&&mod.slots.length) h=mod.slots.length*0.5;
-        zona=mod.zona||'nautico';
+        if(mod.zona) zona=mod.zona;
       }
       if(works&&!h) h=calcHFromSlots(activeSlots(p.hor||''));
       if(works&&h>0){
@@ -2213,27 +2214,27 @@ function mihRenderCal(){
     const isWE=date.getDay()===0||date.getDay()===6;
     const isSel=selD===d;
     let bg,numColor,dot='',extra='';
-    if(isSel){bg=color;numColor='#fff';}
-    else if(isVac){
-      bg='var(--bg2)';numColor=isWE?'var(--accent)':'var(--text2)';
-      dot='<div style="width:6px;height:6px;border-radius:50%;background:#18a050;margin:2px auto 0"></div>';
+    // Calculate dot/letter regardless of selection
+    const zonaD=mod?mod.zona||'nautico':p.zona_base||'nautico';
+    const zonaLetterD=zonaD!=='nautico'
+      ?'<div style="font-size:9px;font-weight:700;color:'+(zonaD==='cocteleria'?'#7020c8':'#10a8a0')+';line-height:1;margin-top:1px">'+(zonaD==='cocteleria'?'K':'O')+'</div>'
+      :'';
+    if(isVac){
       extra='<svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" viewBox="0 0 100 100" preserveAspectRatio="none"><text x="50" y="72" text-anchor="middle" font-size="68" font-weight="900" fill="#18a050" opacity="0.35" font-family="Arial,sans-serif">V</text></svg>';
-    } else if(isBaja){
-      bg='var(--bg2)';numColor=isWE?'var(--accent)':'var(--text2)';
-      dot='<div style="width:6px;height:6px;border-radius:50%;background:#d42020;margin:2px auto 0"></div>';
-      extra='<svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="5" y1="5" x2="95" y2="95" stroke="#d42020" stroke-width="5" stroke-linecap="round"/><line x1="95" y1="5" x2="5" y2="95" stroke="#d42020" stroke-width="5" stroke-linecap="round"/></svg>';
-    } else if(isElim){
-      bg='var(--bg2)';numColor=isWE?'var(--accent)':'var(--text2)';
+      dot='<div style="width:6px;height:6px;border-radius:50%;background:#18a050;margin:2px auto 0"></div>';
+    } else if(isBaja||isElim){
+      if(isBaja) extra='<svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="5" y1="5" x2="95" y2="95" stroke="#d42020" stroke-width="5" stroke-linecap="round"/><line x1="95" y1="5" x2="5" y2="95" stroke="#d42020" stroke-width="5" stroke-linecap="round"/></svg>';
       dot='<div style="width:6px;height:6px;border-radius:50%;background:#d42020;margin:2px auto 0"></div>';
     } else if(works){
-      bg=color+'22';numColor=isWE?'var(--accent)':'var(--text)';
       const dotColor=hasChange?'#d42020':'#18a050';
-      const zonaD=mod?mod.zona||'nautico':p.zona_base||'nautico';
-      const zonaLetterD=zonaD!=='nautico'
-        ?'<div style="font-size:9px;font-weight:700;color:'+(zonaD==='cocteleria'?'#7020c8':'#10a8a0')+';line-height:1;margin-top:1px">'+(zonaD==='cocteleria'?'K':'O')+'</div>'
-        :'';
       dot='<div style="width:6px;height:6px;border-radius:50%;background:'+dotColor+';margin:2px auto 0"></div>'+zonaLetterD;
-    } else {bg='var(--bg2)';numColor=isWE?'var(--accent)':'var(--text2)';}
+    }
+    // Now set background
+    if(isSel){bg=color;numColor='#fff';}
+    else if(isVac){bg='var(--bg2)';numColor=isWE?'var(--accent)':'var(--text2)';}
+    else if(isBaja||isElim){bg='var(--bg2)';numColor=isWE?'var(--accent)':'var(--text2)';}
+    else if(works){bg=color+'22';numColor=isWE?'var(--accent)':'var(--text)';}
+    else{bg='var(--bg2)';numColor=isWE?'var(--accent)':'var(--text2)';}
     const border=(works||isVac||isBaja||isElim)&&!isSel?'0.5px solid '+color+'55':'0.5px solid var(--border)';
     html+='<div onclick="mihSelectDay(new Date('+year+','+mihMonth+','+d+'))" style="position:relative;border-radius:8px;background:'+bg+';border:'+border+';padding:6px 2px;text-align:center;cursor:pointer;min-height:46px;overflow:hidden">'
       +extra+'<div style="font-size:14px;font-weight:'+(works||isSel?700:400)+';color:'+numColor+';position:relative;z-index:1">'+d+'</div>'+dot+'</div>';
@@ -2306,8 +2307,17 @@ async function mihActionDay(k,id,action){
   const sal=p.hor?p.hor.split('-').slice(1).join('-'):'';
   if(action==='restaurar'){
     showDlg('Restaurar','¿Restaurar a '+p.nombre+' en este día?',false,async ()=>{
-      await saveDayAssignment(k,p.db_id,ent,sal,slots,'activo');
-      delete mihMods[new Date(k+'T00:00:00').getDate()];
+      const dayN=new Date(k+'T00:00:00').getDate();
+      const curMod=mihMods[dayN];
+      const wasAdded=curMod&&curMod.estado==='añadido';
+      if(wasAdded){
+        // Completely remove the record — worker goes back to not working this day
+        await supa.delete('horarios_dia','fecha=eq.'+k+'&personal_id=eq.'+p.db_id).catch(e=>console.error(e));
+      } else {
+        // Worker is base but was modified — restore to 'activo' (base schedule)
+        await saveDayAssignment(k,p.db_id,ent,sal,slots,'activo');
+      }
+      delete mihMods[dayN];
       mihRenderCal();mihSelectDay(new Date(k+'T00:00:00'));
     });
   } else if(action==='añadir'){
@@ -2334,7 +2344,7 @@ async function mihActionDay(k,id,action){
     vacBtn2.textContent='Vacaciones';
     btns.insertBefore(vacBtn2,okBtn);btns.insertBefore(bajaBtn,vacBtn2);
     const cleanup=()=>{
-      bajaBtn.remove();vacBtn2.remove();
+      ['dlg-mih-baja','dlg-mih-vac'].forEach(id=>{const e=document.getElementById(id);if(e)e.remove();});
       document.getElementById('dlg').style.display='none';dlgCb=null;
     };
     bajaBtn.onclick=async ()=>{cleanup();await saveDayAssignment(k,p.db_id,ent,sal,slots,'baja');mihMods[new Date(k+'T00:00:00').getDate()]={personal_id:p.db_id,estado:'baja'};mihRenderCal();mihSelectDay(new Date(k+'T00:00:00'));};
