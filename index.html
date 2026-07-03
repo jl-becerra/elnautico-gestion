@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v2.8</title>
+<title>El Náutico · Gestión v2.9</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -465,9 +465,9 @@ async function importBackupExcel(input){
 
 // ── SUPABASE ────────────────────────────────────────────────────
 // ── SUPABASE CONFIG ─────────────────────────────────────────────
-// Sustituye sb_publishable_Kzp4EdkK5b6J9qMI5YZwaQ_L1Vsafff por tu anon/public key de Supabase
+// Sustituye TU_SUPABASE_KEY por tu anon/public key de Supabase
 const SUPA_URL = 'https://ygljrtonvowmgidfdect.supabase.co';
-const SUPA_KEY = 'sb_publishable_Kzp4EdkK5b6J9qMI5YZwaQ_L1Vsafff';
+const SUPA_KEY = 'TU_SUPABASE_KEY';
 
 const supa = {
   headers: {
@@ -861,10 +861,10 @@ function showPage(id){
   if(pg)pg.classList.add('active');
   if(tb)tb.classList.add('active');
   document.getElementById('month-nav').style.display=(id==='cal'&&!selDay)?'flex':'none';
-  // Always hide day-view when leaving calendar tab
+  // Hide day-view when leaving calendar tab (but keep selDay so user can return)
   if(id!=='cal'){
     const dv=document.getElementById('day-view');
-    if(dv){dv.style.display='none';selDay=null;}
+    if(dv) dv.style.display='none';
   }
   if(id==='admin')renderAdminList();
   if(id==='mih'){mihSelDay=null;mihInit();}
