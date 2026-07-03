@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v2.4</title>
+<title>El Náutico · Gestión v2.5</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -1393,6 +1393,8 @@ async function changeZona(sel){
   // Save to DB
   const estado=a.added?'añadido':a.deleted?(a.baja?'baja':a.vacaciones?'vacaciones':'eliminado'):'activo';
   await saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,estado,zona);
+  // Re-render so worker moves to correct section
+  renderDayView();
 }
 
 async function askAddWorkerByName(k){
