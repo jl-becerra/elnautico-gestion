@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v3.0</title>
+<title>El Náutico · Gestión v3.2</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -1183,10 +1183,11 @@ function renderDayView(){
   const availNot=STAFF.filter(p=>isAvail(p,date)&&!assignedIds.has(p.id));
   const restNot=STAFF.filter(p=>!isAvail(p,date)&&!assignedIds.has(p.id));
 
+  const sortApe=(a,b)=>a.ape.localeCompare(b.ape,'es');
   const addPanel=showAdd?`<div class="add-panel">
     <select id="add-sel">
-      ${availNot.length?`<optgroup label="Disponibles hoy">${availNot.map(p=>`<option value="${p.id}">${p.nombre} ${p.ape}</option>`).join('')}</optgroup>`:''}
-      ${restNot.length?`<optgroup label="Resto">${restNot.map(p=>`<option value="${p.id}">${p.nombre} ${p.ape}</option>`).join('')}</optgroup>`:''}
+      ${availNot.length?`<optgroup label="Disponibles hoy">${[...availNot].sort(sortApe).map(p=>`<option value="${p.id}">${p.ape}, ${p.nombre}</option>`).join('')}</optgroup>`:''}
+      ${restNot.length?`<optgroup label="Resto">${[...restNot].sort(sortApe).map(p=>`<option value="${p.id}">${p.ape}, ${p.nombre}</option>`).join('')}</optgroup>`:''}
     </select>
     <div class="add-row">
       <button class="btn-ok" onclick="askAddWorker('${k}')">Añadir</button>
@@ -1438,10 +1439,11 @@ function askAddWorker(k){
     if(!dayData[k])dayData[k]=[];
     // Store origSlots as Set for comparison; also add to dayOrig
     const origSlotsSet=new Set(slts);
-    dayData[k].push({id,db_id:p.db_id,entrada,salida,slots:slts,added:true,deleted:false,origSlots:origSlotsSet});
+    const zonaAddW=p.zona_base||'nautico';
+    dayData[k].push({id,db_id:p.db_id,entrada,salida,slots:slts,added:true,deleted:false,origSlots:origSlotsSet,zona:zonaAddW});
     if(!dayOrig[k]) dayOrig[k]=[];
-    dayOrig[k].push({id,db_id:p.db_id,entrada,salida,slots:origSlotsSet,added:true,deleted:false});
-    saveDayAssignment(k,p.db_id,entrada,salida,slts,'añadido');
+    dayOrig[k].push({id,db_id:p.db_id,entrada,salida,slots:origSlotsSet,added:true,deleted:false,zona:zonaAddW});
+    saveDayAssignment(k,p.db_id,entrada,salida,slts,'añadido',zonaAddW);
     showAdd=false;renderDayView();
   });
 }
