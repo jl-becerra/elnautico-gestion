@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v3.6</title>
+<title>El Náutico · Gestión v3.7</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -868,6 +868,13 @@ function showPage(id){
     if(dv) dv.style.display='none';
     if(cv) cv.style.display='block';
   }
+  // When entering calendar tab, refresh dayData cache and re-render
+  if(id==='cal'){
+    // Clear stale day cache so changes from other tabs are visible
+    dayData={};dayOrig={};
+    if(selDay) openDay(selDay);
+    else renderCal();
+  }
   if(id==='admin')renderAdminList();
   if(id==='mih'){mihSelDay=null;mihInit();}
   if(id==='inf'){const inp=document.getElementById('tarifa-coc-input');if(inp)inp.value=getTarifaCocteleria();}
@@ -930,6 +937,9 @@ function renderCal(){
 }
 
 async function openDay(date){
+  // Only open day if we're on the calendar tab
+  const calPage=document.getElementById('page-cal');
+  if(!calPage||!calPage.classList.contains('active')) return;
   selDay=date;showAdd=false;
   document.getElementById('cal-view').style.display='none';
   document.getElementById('day-view').style.display='block';
