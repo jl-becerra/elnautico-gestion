@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v4.4</title>
+<title>El Náutico · Gestión v4.5</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -618,7 +618,8 @@ async function saveDayAssignment(fecha, personalId, entrada, salida, slots, esta
       updated_at: new Date().toISOString()
     }, 'fecha,personal_id');
     mihMods={};
-    // Update calendar counts
+    // Invalidate calCounts for this day so renderCal recalculates
+    delete calCounts[fecha];
     renderCal();
   } catch(e) {
     console.error('Error guardando horario:', e);
@@ -935,8 +936,7 @@ function renderCal(){
     const date=new Date(curMonth.getFullYear(),curMonth.getMonth(),d);
     const k=fmtD(date);
     // Use cached count if available, otherwise show workers from STAFF
-    const cached=dayData[k];
-    const cnt=cached?cached.filter(a=>!a.deleted).length:STAFF.filter(p=>isAvail(p,date)).length;
+    const cnt=calCounts[k]!==undefined?calCounts[k]:(dayData[k]?dayData[k].filter(a=>!a.deleted).length:STAFF.filter(p=>isAvail(p,date)).length);
     const isWE=date.getDay()===0||date.getDay()===6;
     const isSel=selDay&&fmtD(selDay)===k;
     const el=document.createElement('div');
@@ -1751,6 +1751,8 @@ function exportPersonalPDF(){
 }
 
 // ── STARTUP ─────────────────────────────────────────
+const calCounts={}; // separate cache just for calendar counts
+
 async function preloadMonthData(month){
   const y=month.getFullYear(),m=month.getMonth();
   const dim=new Date(y,m+1,0).getDate();
@@ -1763,20 +1765,13 @@ async function preloadMonthData(month){
     for(let d=1;d<=dim;d++){
       const date=new Date(y,m,d);
       const k=fmtD(date);
-      if(dayData[k]) continue;
       const mods=byDate[k]||[];
-      const workers=STAFF.filter(p=>isAvail(p,date)).map(p=>({
-        id:p.id,db_id:p.db_id,deleted:false,baja:false,vacaciones:false,added:false
-      }));
+      let cnt=STAFF.filter(p=>isAvail(p,date)).length;
       mods.forEach(mod=>{
-        const w=workers.find(x=>x.db_id===mod.personal_id);
-        if(mod.estado==='eliminado'||mod.estado==='baja'||mod.estado==='vacaciones'){
-          if(w)w.deleted=true;
-        } else if(mod.estado==='añadido'){
-          if(!w)workers.push({id:mod.personal_id,db_id:mod.personal_id,deleted:false,added:true});
-        }
+        if(mod.estado==='eliminado'||mod.estado==='baja'||mod.estado==='vacaciones') cnt--;
+        else if(mod.estado==='añadido') cnt++;
       });
-      dayData[k]=workers;
+      calCounts[k]=Math.max(0,cnt);
     }
   }catch(e){console.error('preloadMonthData:',e);}
 }
