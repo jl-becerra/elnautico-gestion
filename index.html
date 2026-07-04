@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v4.5</title>
+<title>El Náutico · Gestión v4.9</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -59,7 +59,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .sch-table thead tr td{position:sticky;top:0;z-index:2}
 .sch-table thead tr td:first-child{z-index:3}
 /* nombre sticky */
-.sch-table td.td-name{background:var(--bg3);font-size:11px;font-weight:600;color:var(--text);padding:0 6px;border-right:0.5px solid var(--border2);border-bottom:0.5px solid var(--border);position:sticky;left:0;z-index:1;white-space:nowrap;height:24px;line-height:24px}
+.sch-table td.td-name{background:var(--bg3);font-size:13px;font-weight:600;color:var(--text);padding:0 6px;border-right:0.5px solid var(--border2);border-bottom:0.5px solid var(--border);position:sticky;left:0;z-index:1;white-space:nowrap;height:24px;line-height:24px}
 /* cada media hora */
 .sch-table td.td-half{border-right:none;border-bottom:0.5px solid var(--border);width:13px;min-width:13px;height:24px;padding:0;cursor:pointer;position:relative}
 /* separador de hora completa (cada 2 celdas) */
@@ -776,11 +776,11 @@ async function buildDay(date){
   mods.forEach(mod=>{
     const existing = workers.find(w=>w.db_id===mod.personal_id);
     if(mod.estado==='eliminado'){
-      if(existing){existing.deleted=true;existing.baja=false;}
+      if(existing){existing.deleted=true;existing.baja=false;existing.zona=mod.zona||existing.zona||'nautico';}
     } else if(mod.estado==='baja'){
-      if(existing){existing.deleted=true;existing.baja=true;existing.vacaciones=false;}
+      if(existing){existing.deleted=true;existing.baja=true;existing.vacaciones=false;existing.zona=mod.zona||existing.zona||'nautico';}
     } else if(mod.estado==='vacaciones'){
-      if(existing){existing.deleted=true;existing.baja=false;existing.vacaciones=true;}
+      if(existing){existing.deleted=true;existing.baja=false;existing.vacaciones=true;existing.zona=mod.zona||existing.zona||'nautico';}
     } else if(mod.estado==='añadido'){
       const p=STAFF.find(x=>x.db_id===mod.personal_id);
       if(!existing&&p){
@@ -800,6 +800,7 @@ async function buildDay(date){
         existing.entrada=mod.entrada;
         existing.salida=mod.salida;
         existing.added=true;
+        existing.zona=mod.zona||existing.zona||'nautico';
       }
     } else if(existing){
       // Modified horario
@@ -1153,7 +1154,7 @@ function renderDayView(){
       // Zona selector (only for active workers)
       const zonaColor={'nautico':'','cocteleria':'#7020c8','otro':'#10a8a0'};
       const zonaSel=a.deleted?''
-        :'<select data-k="'+k+'" data-id="'+a.id+'" onchange="changeZona(this)" style="margin-left:4px;font-size:9px;padding:1px 2px;border:0.5px solid #ccc;border-radius:3px;background:'+(zonaColor[a.zona||'nautico']||'var(--bg2)')+';color:'+(a.zona&&a.zona!=='nautico'?'#fff':'var(--text2)')+'"><option value="nautico"'+((!a.zona||a.zona==='nautico')?' selected':'')+'>Náutico</option><option value="cocteleria"'+(a.zona==='cocteleria'?' selected':'')+'>Coctelería</option><option value="otro"'+(a.zona==='otro'?' selected':'')+'>El Otro</option></select>';
+        :'<select data-k="'+k+'" data-id="'+a.id+'" onchange="changeZona(this)" style="margin-left:4px;font-size:11px;padding:1px 2px;border:0.5px solid #ccc;border-radius:3px;width:30px;background:'+(zonaColor[a.zona||'nautico']||'var(--bg2)')+';color:'+(a.zona&&a.zona!=='nautico'?'#fff':'var(--text2)')+'"><option value="nautico"'+((!a.zona||a.zona==='nautico')?' selected':'')+'>N</option><option value="cocteleria"'+(a.zona==='cocteleria'?' selected':'')+'>K</option><option value="otro"'+(a.zona==='otro'?' selected':'')+'>O</option></select>';
       return'<tr style="'+(a.deleted?'opacity:0.55':'')+'"><td class="td-name" style="'+nameStyle+'">'+alias(p)+btn+zonaSel+'</td>'+cells+'<td class="td-total">'+hTot+'</td></tr>';
     }).join('');
   }
@@ -1207,11 +1208,11 @@ function renderDayView(){
   const availNot=STAFF.filter(p=>isAvail(p,date)&&!assignedIds.has(p.id));
   const restNot=STAFF.filter(p=>!isAvail(p,date)&&!assignedIds.has(p.id));
 
-  const sortApe=(a,b)=>a.ape.localeCompare(b.ape,'es');
+  const sortNom=(a,b)=>a.nombre.localeCompare(b.nombre,'es');
   const addPanel=showAdd?`<div class="add-panel">
     <select id="add-sel">
-      ${availNot.length?`<optgroup label="Disponibles hoy">${[...availNot].sort(sortApe).map(p=>`<option value="${p.id}">${p.ape}, ${p.nombre}</option>`).join('')}</optgroup>`:''}
-      ${restNot.length?`<optgroup label="Resto">${[...restNot].sort(sortApe).map(p=>`<option value="${p.id}">${p.ape}, ${p.nombre}</option>`).join('')}</optgroup>`:''}
+      ${availNot.length?`<optgroup label="Disponibles hoy">${[...availNot].sort(sortNom).map(p=>`<option value="${p.id}">${p.nombre} ${p.ape}</option>`).join('')}</optgroup>`:''}
+      ${restNot.length?`<optgroup label="Resto">${[...restNot].sort(sortNom).map(p=>`<option value="${p.id}">${p.nombre} ${p.ape}</option>`).join('')}</optgroup>`:''}
     </select>
     <div class="add-row">
       <button class="btn-ok" onclick="askAddWorker('${k}')">Añadir</button>
@@ -1257,7 +1258,7 @@ function renderDayView(){
         <button onclick="navigateDay(1)" style="padding:5px 12px;border-radius:var(--radius-sm);border:0.5px solid var(--border2);background:var(--bg3);color:var(--text);font-size:14px;cursor:pointer">›</button>
       </div>
     </div>
-    <div class="day-title">${label}</div>
+    <div class="day-title" style="position:sticky;top:0;z-index:10;background:var(--bg);padding:4px 0;margin:0 -2px">${label}</div>
     <div class="day-meta">${nActivos} personas asignadas${nEliminados?` · <span style="color:#aaa">${nEliminados} eliminado${nEliminados>1?'s':''}</span>`:''}</div>
     <div class="schedule-box">
       <div class="schedule-scroll" id="schedule-scroll-main">
@@ -2228,13 +2229,11 @@ async function mihLoadMonth(){
   try{
     const rows=await supa.get('horarios_dia','fecha=gte.'+from+'&fecha=lte.'+to+'&personal_id=eq.'+p.db_id);
     rows.forEach(r=>{
-      // Skip 'activo' (restored to base) and 'eliminado' for workers outside their period
-      if(r.estado==='activo') return;
       const d=new Date(r.fecha+'T00:00:00');
-      if(r.estado==='eliminado'){
-        // Only show if worker is in base schedule (eliminado = removed from a working day)
-        if(!isAvail(p,d)) return;
-      }
+      // Skip 'activo' only if zona matches zona_base (truly restored to base)
+      if(r.estado==='activo'&&(r.zona||'nautico')===(p.zona_base||'nautico')) return;
+      // Skip 'eliminado' for workers outside their contract period
+      if(r.estado==='eliminado'&&!isAvail(p,d)) return;
       mihMods[d.getDate()]=r;
     });
   }catch(e){console.error(e);}
