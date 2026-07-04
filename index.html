@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v4.0</title>
+<title>El Náutico · Gestión v4.2</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -937,7 +937,13 @@ function renderCal(){
     const isSel=selDay&&fmtD(selDay)===k;
     const el=document.createElement('div');
     el.className='cal-cell'+(isWE?' we-day':'')+(isSel?' selected':'');
-    el.innerHTML=`<div class="cn">${d}</div><div class="cc">${cnt} personas</div><div class="cbar" style="width:${Math.min(100,Math.round(cnt/22*100))}%"></div>`;
+    // Adjust count if dayData is loaded for this day
+  const dayK=`${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  let adjCnt=cnt;
+  if(dayData[dayK]){
+    adjCnt=dayData[dayK].filter(a=>!a.deleted).length;
+  }
+  el.innerHTML=`<div class="cn">${d}</div><div class="cc">${adjCnt} personas</div><div class="cbar" style="width:${Math.min(100,Math.round(adjCnt/22*100))}%"></div>`;
     el.onclick=()=>openDay(date);
     g.appendChild(el);
   }
@@ -1034,20 +1040,21 @@ async function askUpdHorEl(inputEl){
   const fi=parseInt(inputEl.dataset.fi||'0');
   const val=inputEl.value;
   const a=(dayData[k]||[]).find(x=>x.id===id);
-  const p=STAFF.find(x=>x.id===id);
-  const entradas=a.entrada?a.entrada.split('/'):['']; 
-  const salidas=a.salida?a.salida.split('/'):['']; 
-  const orig=field==='entrada'?(entradas[fi]||'').trim():(salidas[fi]||'').trim();
-  showDlg('Cambiar horario','Cambiar '+(field==='entrada'?'entrada':'salida')+' de franja '+(fi+1)+' de '+(p?p.nombre:'')+' de '+orig+' a '+val+'?',false,()=>{
-    if(field==='entrada'){entradas[fi]=val;}else{salidas[fi]=val;}
-    a.entrada=entradas.join('/');
-    a.salida=salidas.join('/');
-    a.slots=activeSlots(a.entrada,a.salida);
-    saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':'activo');
+  if(!a)return;
+  const entradas=a.entrada?a.entrada.split('/'):[''];
+  const salidas=a.salida?a.salida.split('/'):[''];
+  if(field==='entrada'){entradas[fi]=val;}else{salidas[fi]=val;}
+  a.entrada=entradas.join('/');
+  a.salida=salidas.join('/');
+  const newSlots=activeSlots(a.entrada,a.salida);
+  if(newSlots.size>28){
+    alert('⚠️ El horario resultante ('+a.entrada+' – '+a.salida+') supera las 14 horas. Comprueba que la entrada y salida son correctas.');
     renderDayView();
-  });
-  // revert visually
-  inputEl.value=orig;
+    return;
+  }
+  a.slots=newSlots;
+  saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':'activo',a.zona||'nautico');
+  renderDayView();
 }
 
 function askAddFranjaEl(btn){
