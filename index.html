@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v7.3</title>
+<title>El Náutico · Gestión v7.4</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -1272,6 +1272,14 @@ function renderDayView(){
 
   const nActivos=raw.filter(a=>!a.deleted).length;
   const nEliminados=raw.filter(a=>a.deleted).length;
+  // Summary counts
+  const nDay=srtDay.length;
+  const nEve=srtEve.length;
+  const nCoc=srtCoc.length;
+  const nOtro=srtOtro.length;
+  // Come count: Náutico + Coctelería (not El Otro - separate location)
+  const nComeDay=[...srtDay,...srtCocDay].filter(a=>{const p=STAFF.find(x=>x.id===a.id);return p?.come;}).length;
+  const nComeEve=[...srtEve,...srtCocEve].filter(a=>{const p=STAFF.find(x=>x.id===a.id);return p?.come;}).length;
 
   document.getElementById('day-view').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -1282,7 +1290,14 @@ function renderDayView(){
       </div>
     </div>
     <div class="day-title" style="position:sticky;top:0;z-index:10;background:var(--bg);padding:4px 0;margin:0 -2px">${label}</div>
-    <div class="day-meta">${nActivos} personas asignadas${nEliminados?` · <span style="color:#aaa">${nEliminados} eliminado${nEliminados>1?'s':''}</span>`:''}</div>
+    <div class="day-meta">
+      ${nActivos} personas
+      · <span>${nDay} de día</span> · <span>${nEve} de tarde</span>
+      ${nCoc?` · <span style="color:#7020c8">${nCoc} Coctelería</span>`:''}
+      ${nOtro?` · <span style="color:#10a8a0">${nOtro} El Otro</span>`:''}
+      ${nEliminados?` · <span style="color:#aaa">${nEliminados} eliminado${nEliminados>1?'s':''}</span>`:''}
+      <br><span style="font-size:11px">🍔 Comen: turno día ${nComeDay}${nComeEve?' · turno tarde '+nComeEve:''}</span>
+    </div>
     <div class="schedule-box">
       <div class="schedule-scroll" id="schedule-scroll-main">
         <table class="sch-table">
