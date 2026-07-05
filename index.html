@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v5.6</title>
+<title>El Náutico · Gestión v5.8</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -430,6 +430,23 @@ async function importBackupExcel(input){
         <div class="stat-c"><div class="sv" id="a-dia">0</div><div class="sl">Por días</div></div>
       </div>
       <div id="admin-list"></div>
+      <div style="padding:12px 0 4px;border-top:1px solid var(--border2);margin-top:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Tarifas</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+          <span style="font-size:12px;width:120px;color:var(--text2)">🍸 Coctelería €/h</span>
+          <input type="number" id="tarifa-coc-admin" min="0" step="0.5" style="width:70px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;background:var(--bg2);color:var(--text)">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+          <span style="font-size:12px;width:120px;color:var(--text2)">🍔 Comida €/día</span>
+          <input type="number" id="tarifa-come-admin" min="0" step="0.5" style="width:70px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;background:var(--bg2);color:var(--text)">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:12px;width:120px;color:var(--text2)">🛏️ Alojamiento €/día</span>
+          <input type="number" id="tarifa-duerme-admin" min="0" step="0.5" style="width:70px;padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;background:var(--bg2);color:var(--text)">
+        </div>
+        <button onclick="saveTarifasAdmin()" style="padding:6px 14px;background:var(--blue);border:none;border-radius:var(--radius-sm);color:#fff;font-size:13px;cursor:pointer">Guardar</button>
+        <span id="tarifa-admin-status" style="font-size:12px;color:var(--blue);margin-left:8px"></span>
+      </div>
     </div>
   </div>
 
@@ -907,7 +924,12 @@ function showPage(id){
     if(selDay) openDay(selDay);
     else renderCal();
   }
-  if(id==='admin')renderAdminList();
+  if(id==='admin'){
+    renderAdminList();
+    const ca=document.getElementById('tarifa-coc-admin');if(ca)ca.value=getTarifaCocteleria();
+    const cm=document.getElementById('tarifa-come-admin');if(cm)cm.value=getTarifaComida();
+    const da=document.getElementById('tarifa-duerme-admin');if(da)da.value=getTarifaDuerme();
+  }
   if(id==='mih'){mihSelDay=null;mihInit();}
   if(id==='inf'){
     const inp=document.getElementById('tarifa-coc-input');if(inp)inp.value=getTarifaCocteleria();
@@ -1182,7 +1204,7 @@ function renderDayView(){
       const zonaColor={'nautico':'','cocteleria':'#7020c8','otro':'#10a8a0'};
       const zonaSel=a.deleted?''
         :'<select data-k="'+k+'" data-id="'+a.id+'" onchange="changeZona(this)" style="margin-left:4px;font-size:11px;padding:1px 2px;border:0.5px solid #ccc;border-radius:3px;width:30px;background:'+(zonaColor[a.zona||'nautico']||'var(--bg2)')+';color:'+(a.zona&&a.zona!=='nautico'?'#fff':'var(--text2)')+'"><option value="nautico"'+((!a.zona||a.zona==='nautico')?' selected':'')+'>N</option><option value="cocteleria"'+(a.zona==='cocteleria'?' selected':'')+'>K</option><option value="otro"'+(a.zona==='otro'?' selected':'')+'>O</option></select>';
-      return'<tr style="'+(a.deleted?'opacity:0.55':'')+'"><td class="td-name" style="'+nameStyle+'">'+alias(p)+btn+zonaSel+'</td>'+cells+'<td class="td-total">'+hTot+'</td></tr>';
+      return'<tr style="'+(a.deleted?'opacity:0.55':'')+'"><td class="td-name" style="'+nameStyle+'">'+alias(p)+(p.come?' 🍔':'')+(p.duerme?' 🛏️':'')+btn+zonaSel+'</td>'+cells+'<td class="td-total">'+hTot+'</td></tr>';
     }).join('');
   }
 
@@ -1831,6 +1853,16 @@ function getPwd(){ return localStorage.getItem('nautico_pwd')||DEFAULT_PWD; }
 function getTarifaCocteleria(){ return parseFloat(localStorage.getItem('nautico_tarifa_coc'))||12; }
 function getTarifaComida(){ return parseFloat(localStorage.getItem('nautico_tarifa_come'))||8; }
 function getTarifaDuerme(){ return parseFloat(localStorage.getItem('nautico_tarifa_duerme'))||15; }
+function saveTarifasAdmin(){
+  const coc=parseFloat(document.getElementById('tarifa-coc-admin')?.value)||0;
+  const come=parseFloat(document.getElementById('tarifa-come-admin')?.value)||0;
+  const duerme=parseFloat(document.getElementById('tarifa-duerme-admin')?.value)||0;
+  if(coc) localStorage.setItem('nautico_tarifa_coc', coc);
+  if(come) localStorage.setItem('nautico_tarifa_come', come);
+  if(duerme) localStorage.setItem('nautico_tarifa_duerme', duerme);
+  const st=document.getElementById('tarifa-admin-status');
+  if(st){st.textContent='Guardado ✓';setTimeout(()=>st.textContent='',2000);}
+}
 function saveTarifasComeAloj(){
   const come=parseFloat(document.getElementById('tarifa-come-input').value)||0;
   const duerme=parseFloat(document.getElementById('tarifa-duerme-input').value)||0;
@@ -2085,7 +2117,8 @@ function openWorkerForm(idx){
     +'<div id="shift-rows" class="shift-rows"></div>'
     +'<button class="add-shift-btn" onclick="addShift()" style="margin-top:6px">+ Añadir franja</button>'
     +'</div>'
-    // Botones
+    // Come / Duerme
+    +'<div class="form-row" style="gap:20px;margin-top:4px">'    +'<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">'    +'<input type="checkbox" id="f-come"'+(p&&p.come?' checked':'')+' style="width:16px;height:16px"> 🍔 Come</label>'    +'<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">'    +'<input type="checkbox" id="f-duerme"'+(p&&p.duerme?' checked':'')+' style="width:16px;height:16px"> 🛏️ Duerme</label>'    +'</div>'    // Botones
     +'<div class="form-btns">'
     +'<button class="btn-cancel-form" onclick="closeWorkerForm()">Cancelar</button>'
     +'<button class="btn-save" onclick="saveWorker()">Guardar</button>'
