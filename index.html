@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v7.6</title>
+<title>El Náutico · Gestión v7.8</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -420,6 +420,15 @@ async function importBackupExcel(input){
         </div>
         <button onclick="saveTarifasAdmin()" style="padding:6px 14px;background:var(--blue);border:none;border-radius:var(--radius-sm);color:#fff;font-size:13px;cursor:pointer">Guardar</button>
         <span id="tarifa-admin-status" style="font-size:12px;color:var(--blue);margin-left:8px"></span>
+      </div>
+      <div style="padding:12px 0 4px;border-top:1px solid var(--border2);margin-top:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Horario confirmado hasta</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="date" id="confirmado-hasta-input" style="padding:5px 8px;border:0.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;background:var(--bg2);color:var(--text)">
+          <button onclick="saveConfirmadoHastaUI()" style="padding:6px 14px;background:var(--blue);border:none;border-radius:var(--radius-sm);color:#fff;font-size:13px;cursor:pointer">Guardar</button>
+          <span id="confirmado-status" style="font-size:12px;color:var(--blue)"></span>
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">Los días hasta esta fecha se muestran como "comprobado" en todas las apps</div>
       </div>
     </div>
   </div>
@@ -906,6 +915,7 @@ function showPage(id){
     const ca=document.getElementById('tarifa-coc-admin');if(ca)ca.value=getTarifaCocteleria();
     const cm=document.getElementById('tarifa-come-admin');if(cm)cm.value=getTarifaComida();
     const da=document.getElementById('tarifa-duerme-admin');if(da)da.value=getTarifaDuerme();
+    const ch=document.getElementById('confirmado-hasta-input');if(ch&&_confirmadoHasta)ch.value=_confirmadoHasta;
   }
   if(id==='mih'){mihSelDay=null;mihInit();}
   if(id==='inf'){
@@ -961,10 +971,13 @@ function renderCal(){
     const k=fmtD(date);
     // Use cached count if available, otherwise show workers from STAFF
     const cnt=calCounts[k]!==undefined?calCounts[k]:(dayData[k]?dayData[k].filter(a=>!a.deleted).length:STAFF.filter(p=>isAvail(p,date)).length);
+    const isConf=isConfirmado(k);
     const isWE=date.getDay()===0||date.getDay()===6;
     const isSel=selDay&&fmtD(selDay)===k;
     const el=document.createElement('div');
     el.className='cal-cell'+(isWE?' we-day':'')+(isSel?' selected':'');
+    if(isConf) el.style.outline='2px solid var(--blue)';
+    else el.style.outline='';
     el.innerHTML=`<div class="cn">${d}</div><div class="cc">${cnt} personas</div><div class="cbar" style="width:${Math.min(100,Math.round(cnt/22*100))}%"></div>`;
     el.onclick=()=>openDay(date);
     g.appendChild(el);
@@ -1289,7 +1302,7 @@ function renderDayView(){
         <button onclick="navigateDay(1)" style="padding:5px 12px;border-radius:var(--radius-sm);border:0.5px solid var(--border2);background:var(--bg3);color:var(--text);font-size:14px;cursor:pointer">›</button>
       </div>
     </div>
-    <div class="day-title" style="position:sticky;top:0;z-index:10;background:var(--bg);padding:4px 0;margin:0 -2px">${label}</div>
+    <div class="day-title" style="position:sticky;top:0;z-index:10;background:var(--bg);padding:4px 0;margin:0 -2px">${label}${isConfirmado(k)?' <span style="font-size:13px;font-weight:400;color:var(--blue)">✓ comprobado</span>':''}</div>
     <div class="day-meta">
       ${nActivos} personas
       · <span>${nDay} de día</span> · <span>${nEve} de tarde</span>
@@ -1869,7 +1882,7 @@ async function init() {
   document.getElementById('month-nav').style.display='flex';
   document.getElementById('cal-grid').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text2);font-size:14px">Cargando...</div>';
   await loadStaff();
-  await preloadMonthData(curMonth);
+  await Promise.all([preloadMonthData(curMonth), loadConfirmadoHasta()]);
   renderCal();
 }
 
@@ -1885,8 +1898,28 @@ async function getPwd(){
   return _cachedPwd;
 }
 function getTarifaCocteleria(){ return parseFloat(localStorage.getItem('nautico_tarifa_coc'))||12; }
+let _confirmadoHasta=null; // 'YYYY-MM-DD' or null
+async function loadConfirmadoHasta(){
+  try{
+    const rows=await supa.get('config','key=eq.confirmado_hasta');
+    _confirmadoHasta=rows[0]?.value||null;
+  }catch(e){_confirmadoHasta=null;}
+}
+function isConfirmado(dateStr){ return _confirmadoHasta&&dateStr<=_confirmadoHasta; }
+async function saveConfirmadoHasta(dateStr){
+  await supa.upsert('config',{key:'confirmado_hasta',value:dateStr},'key');
+  _confirmadoHasta=dateStr;
+}
 function getTarifaComida(){ return parseFloat(localStorage.getItem('nautico_tarifa_come'))||8; }
 function getTarifaDuerme(){ return parseFloat(localStorage.getItem('nautico_tarifa_duerme'))||15; }
+async function saveConfirmadoHastaUI(){
+  const val=document.getElementById('confirmado-hasta-input')?.value;
+  if(!val) return;
+  await saveConfirmadoHasta(val);
+  renderCal();
+  const st=document.getElementById('confirmado-status');
+  if(st){st.textContent='Guardado ✓';setTimeout(()=>st.textContent='',2000);}
+}
 function saveTarifasAdmin(){
   const coc=parseFloat(document.getElementById('tarifa-coc-admin')?.value)||0;
   const come=parseFloat(document.getElementById('tarifa-come-admin')?.value)||0;
@@ -2320,11 +2353,12 @@ let mihUser=null,mihMonth=6,mihMods={},mihSelDay=null;
 function mihInit(){
   const sel=document.getElementById('mih-sel');
   if(!sel)return;
-  if(sel.options.length===0){
-    const sorted=[...STAFF].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
-    sel.innerHTML=sorted.map(p=>'<option value="'+p.id+'">'+p.nombre+' '+p.ape+'</option>').join('');
-    mihUser=sorted[0];
-  }
+  // Always rebuild selector to ensure correct order
+  const sorted=[...STAFF].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+  const prevId=mihUser?.id;
+  sel.innerHTML=sorted.map(p=>'<option value="'+p.id+'">'+p.nombre+' '+p.ape+'</option>').join('');
+  mihUser=prevId?sorted.find(p=>p.id===prevId)||sorted[0]:sorted[0];
+  sel.value=mihUser.id;
   // Always reload month data when entering Mi Horario tab
   mihLoadMonth();
 }
