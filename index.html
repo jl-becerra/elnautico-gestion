@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v6.7</title>
+<title>El Náutico · Gestión v6.9</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -1748,8 +1748,9 @@ function exportPersonalPDF(){
   const fecha=now.getDate()+'/'+(now.getMonth()+1)+'/'+now.getFullYear();
   const DIAS=['L','M','X','J','V','S','D'];
 
+  const adminSorted=[...adminStaff].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
   let rows='';
-  adminStaff.forEach(p=>{
+  adminSorted.forEach(p=>{
     const hd=p.horasDia||[0,0,0,0,0,0,0];
     const hSem=hd.reduce((a,b)=>a+b,0);
     const libra=DIAS.filter((_,i)=>!p.dias.includes(i)).join(' ')||'—';
@@ -2401,7 +2402,7 @@ function mihRenderCal(){
     else{bg='var(--bg2)';numColor=isWE?'var(--accent)':'var(--text2)';}
     const border=(works||isVac||isBaja||isElim)&&!isSel?'0.5px solid '+color+'55':'0.5px solid var(--border)';
     html+='<div onclick="mihSelectDay(new Date('+year+','+mihMonth+','+d+'))" style="position:relative;border-radius:8px;background:'+bg+';border:'+border+';padding:6px 2px;text-align:center;cursor:pointer;min-height:46px;overflow:hidden">'
-      +(p.come&&works?'<span style="position:absolute;top:1px;right:2px;font-size:7px">🍔</span>':'')+(p.duerme&&isAvail(p,date)?'<span style="position:absolute;top:1px;left:2px;font-size:7px">🛏</span>':'')
+      +(p.come&&works?'<span style="position:absolute;top:1px;right:2px;font-size:7px">🍔</span>':'')+(p.duerme&&isAvail(p,date)&&(p.hSem>=40)?'<span style="position:absolute;top:1px;left:2px;font-size:7px">🛏</span>':'')
       +extra+'<div style="font-size:14px;font-weight:'+(works||isSel?700:400)+';color:'+numColor+';position:relative;z-index:1">'+d+'</div>'+dot+'</div>';
   }
   html+='</div>';
