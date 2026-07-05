@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v6.0</title>
+<title>El Náutico · Gestión v6.3</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -360,22 +360,6 @@ async function importBackupExcel(input){
         <button class="gen-btn green" onclick="genNominasExcel()">↓ Generar Excel nóminas</button>
       </div>
 
-      <div class="inf-card" style="border-color:#e07020">
-        <div class="inf-card-title" style="color:#e07020">🍔 Comida y 🛏️ Alojamiento</div>
-        <div class="inf-card-desc">Precio diario de comida y alojamiento (se descuenta de la nómina).</div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span style="font-size:13px;min-width:80px">🍔 Comida</span>
-          <input type="number" id="tarifa-come-input" min="0" step="0.5" style="flex:1;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius-sm);font-size:14px" value="">
-          <span style="font-size:13px;color:var(--text2)">€/día</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-          <span style="font-size:13px;min-width:80px">🛏️ Alojamiento</span>
-          <input type="number" id="tarifa-duerme-input" min="0" step="0.5" style="flex:1;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius-sm);font-size:14px" value="">
-          <span style="font-size:13px;color:var(--text2)">€/día</span>
-        </div>
-        <button onclick="saveTarifasComeAloj()" style="padding:8px 14px;background:#e07020;border:none;border-radius:var(--radius-sm);color:#fff;font-size:13px;cursor:pointer">Guardar</button>
-        <div id="tarifa-comealoj-status" style="font-size:12px;color:#e07020;margin-top:6px"></div>
-      </div>
       <div class="inf-card" style="border-color:#7020c8">
         <div class="inf-card-title" style="color:#7020c8">Copia de seguridad</div>
         <div class="inf-card-desc">Exporta toda la base de datos a Excel, o restaura desde un backup previo.</div>
@@ -922,8 +906,6 @@ function showPage(id){
   }
   if(id==='mih'){mihSelDay=null;mihInit();}
   if(id==='inf'){
-    const inpC=document.getElementById('tarifa-come-input');if(inpC)inpC.value=getTarifaComida();
-    const inpD=document.getElementById('tarifa-duerme-input');if(inpD)inpD.value=getTarifaDuerme();
   }
 }
 async function changeMonth(d){
@@ -1856,8 +1838,8 @@ function saveTarifasAdmin(){
   if(st){st.textContent='Guardado ✓';setTimeout(()=>st.textContent='',2000);}
 }
 function saveTarifasComeAloj(){
-  const come=parseFloat(document.getElementById('tarifa-come-input').value)||0;
-  const duerme=parseFloat(document.getElementById('tarifa-duerme-input').value)||0;
+  const come=parseFloat(document.getElementById('tarifa-come-admin')?.value)||0;
+  const duerme=parseFloat(document.getElementById('tarifa-duerme-admin')?.value)||0;
   localStorage.setItem('nautico_tarifa_come', come);
   localStorage.setItem('nautico_tarifa_duerme', duerme);
   const st=document.getElementById('tarifa-comealoj-status');
@@ -2387,6 +2369,7 @@ function mihRenderCal(){
     else{bg='var(--bg2)';numColor=isWE?'var(--accent)':'var(--text2)';}
     const border=(works||isVac||isBaja||isElim)&&!isSel?'0.5px solid '+color+'55':'0.5px solid var(--border)';
     html+='<div onclick="mihSelectDay(new Date('+year+','+mihMonth+','+d+'))" style="position:relative;border-radius:8px;background:'+bg+';border:'+border+';padding:6px 2px;text-align:center;cursor:pointer;min-height:46px;overflow:hidden">'
+      +(p.come&&works?'<span style="position:absolute;top:1px;right:2px;font-size:7px">🍔</span>':'')+(p.duerme?'<span style="position:absolute;top:1px;left:2px;font-size:7px">🛏</span>':'')
       +extra+'<div style="font-size:14px;font-weight:'+(works||isSel?700:400)+';color:'+numColor+';position:relative;z-index:1">'+d+'</div>'+dot+'</div>';
   }
   html+='</div>';
@@ -2427,7 +2410,8 @@ async function mihSelectDay(date){
     const zonaLbl=zonaEf!=='nautico'
       ?'<div style="display:inline-block;padding:2px 10px;border-radius:12px;background:'+(zonaEf==='cocteleria'?'#7020c8':'#10a8a0')+';color:#fff;font-size:12px;font-weight:600;margin-bottom:8px">'+(zonaEf==='cocteleria'?'🍸 Coctelería':'🏠 El Otro')+'</div>'
       :'';
-    bodyHtml=zonaLbl+shifts.map(s=>'<div class="shift-block"><div class="shift-color" style="background:'+BC[p.id%26]+'"></div>'
+    const iconsTxt=(p.come?' 🍔':'')+(p.duerme?' 🛏️':'');
+    bodyHtml=zonaLbl+(iconsTxt?'<div style="font-size:13px;margin-bottom:6px;color:var(--text2)">'+iconsTxt+'</div>':'')+shifts.map(s=>'<div class="shift-block"><div class="shift-color" style="background:'+BC[p.id%26]+'"></div>'
       +'<div class="shift-info"><div class="shift-time">'+s.entrada+' – '+s.salida+'</div>'
       +'<div class="shift-hours">'+calcH(s.entrada,s.salida)+' horas</div></div></div>').join('');
   }
@@ -2445,10 +2429,8 @@ async function mihSelectDay(date){
       +'<button onclick="mihActionDay(this.dataset.k,this.dataset.id,this.dataset.ac)" data-k="'+k+'" data-id="'+p.id+'" data-ac="add" style="width:100%;padding:8px;border-radius:var(--radius-sm);border:0.5px solid var(--blue);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer">+ Añadir a este día</button>'
       +'</div>';
   }
-  const iconsCome=p.come?' 🍔':'',iconsDuerme=p.duerme?' 🛏️':'';
   detail.innerHTML='<div class="day-card" style="margin-top:8px">'
     +'<div class="day-card-header"><div class="day-card-title">'+label+'</div>'
-    +(iconsCome||iconsDuerme?'<div style="font-size:14px;margin-top:2px">'+iconsCome+iconsDuerme+'</div>':'')
     +'</div>'
     +'<div class="day-card-body">'+bodyHtml+actionHtml+'</div></div>';
 }
