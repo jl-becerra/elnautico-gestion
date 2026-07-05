@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v7.5</title>
+<title>El Náutico · Gestión v7.6</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -1875,7 +1875,15 @@ async function init() {
 
 // ── PASSWORD ────────────────────────────────────────────────────────
 const DEFAULT_PWD = 'nautico2026';
-function getPwd(){ return localStorage.getItem('nautico_pwd')||DEFAULT_PWD; }
+let _cachedPwd = null;
+async function getPwd(){
+  if(_cachedPwd) return _cachedPwd;
+  try{
+    const rows=await supa.get('config','key=eq.pwd');
+    _cachedPwd=rows[0]?.value||DEFAULT_PWD;
+  }catch(e){ _cachedPwd=DEFAULT_PWD; }
+  return _cachedPwd;
+}
 function getTarifaCocteleria(){ return parseFloat(localStorage.getItem('nautico_tarifa_coc'))||12; }
 function getTarifaComida(){ return parseFloat(localStorage.getItem('nautico_tarifa_come'))||8; }
 function getTarifaDuerme(){ return parseFloat(localStorage.getItem('nautico_tarifa_duerme'))||15; }
@@ -1899,9 +1907,10 @@ function saveTarifasComeAloj(){
 }
 function setTarifaCocteleria(v){ localStorage.setItem('nautico_tarifa_coc',v); }
 
-function checkPwd(){
+async function checkPwd(){
   const val=document.getElementById('pwd-input').value;
-  if(val===getPwd()){
+  const pwd=await getPwd();
+  if(val===pwd){
     document.getElementById('pwd-screen').style.display='none';
     document.getElementById('main-app').style.display='flex';
     sessionStorage.setItem('nautico_auth','1');
@@ -1916,18 +1925,24 @@ function showChangePwd(){
   document.getElementById('change-pwd-overlay').style.display='flex';
 }
 
-function doChangePwd(){
+async function doChangePwd(){
   const old=document.getElementById('pwd-old').value;
   const n1=document.getElementById('pwd-new1').value;
   const n2=document.getElementById('pwd-new2').value;
   const err=document.getElementById('pwd-change-err');
-  if(old!==getPwd()){err.textContent='Contraseña actual incorrecta';return;}
+  const pwd=await getPwd();
+  if(old!==pwd){err.textContent='Contraseña actual incorrecta';return;}
   if(n1.length<4){err.textContent='Mínimo 4 caracteres';return;}
   if(n1!==n2){err.textContent='Las contraseñas no coinciden';return;}
-  localStorage.setItem('nautico_pwd',n1);
-  document.getElementById('change-pwd-overlay').style.display='none';
-  ['pwd-old','pwd-new1','pwd-new2'].forEach(id=>document.getElementById(id).value='');
-  alert('Contraseña cambiada correctamente');
+  try{
+    await supa.upsert('config',{key:'pwd',value:n1},'key');
+    _cachedPwd=n1;
+    document.getElementById('change-pwd-overlay').style.display='none';
+    ['pwd-old','pwd-new1','pwd-new2'].forEach(id=>document.getElementById(id).value='');
+    alert('Contraseña cambiada correctamente');
+  }catch(e){
+    err.textContent='Error al guardar. Inténtalo de nuevo.';
+  }
 }
 
 // Auto-login if authenticated this session
