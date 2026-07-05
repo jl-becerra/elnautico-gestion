@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v5.8</title>
+<title>El Náutico · Gestión v6.0</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -360,16 +360,6 @@ async function importBackupExcel(input){
         <button class="gen-btn green" onclick="genNominasExcel()">↓ Generar Excel nóminas</button>
       </div>
 
-      <div class="inf-card" style="border-color:#7020c8">
-        <div class="inf-card-title" style="color:#7020c8">Configuración de zonas</div>
-        <div class="inf-card-desc">Tarifa horaria de Coctelería (igual para todos los trabajadores).</div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-          <input type="number" id="tarifa-coc-input" min="0" step="0.5" style="flex:1;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius-sm);font-size:14px" value="">
-          <span style="font-size:13px;color:var(--text2)">€/h</span>
-          <button onclick="saveTarifaCoc()" style="padding:8px 14px;background:#7020c8;border:none;border-radius:var(--radius-sm);color:#fff;font-size:13px;cursor:pointer">Guardar</button>
-        </div>
-        <div id="tarifa-coc-status" style="font-size:12px;color:#7020c8"></div>
-      </div>
       <div class="inf-card" style="border-color:#e07020">
         <div class="inf-card-title" style="color:#e07020">🍔 Comida y 🛏️ Alojamiento</div>
         <div class="inf-card-desc">Precio diario de comida y alojamiento (se descuenta de la nómina).</div>
@@ -932,7 +922,6 @@ function showPage(id){
   }
   if(id==='mih'){mihSelDay=null;mihInit();}
   if(id==='inf'){
-    const inp=document.getElementById('tarifa-coc-input');if(inp)inp.value=getTarifaCocteleria();
     const inpC=document.getElementById('tarifa-come-input');if(inpC)inpC.value=getTarifaComida();
     const inpD=document.getElementById('tarifa-duerme-input');if(inpD)inpD.value=getTarifaDuerme();
   }
@@ -1662,8 +1651,11 @@ async function genNominasExcel(){
 
   let totalDias=0,totalH=0,totalSueldo=0;
   let bodyRows='';
+  let sueldo=0;
 
   const tarifaCoc=getTarifaCocteleria();
+  const tarifaCome=getTarifaComida();
+  const tarifaDuerme=getTarifaDuerme();
   for(const p of STAFF){
     let hT=0,dT=0,vacDias=0,hCoc=0;const vacFechas=[];
     for(const date of monthDays){
@@ -2453,8 +2445,11 @@ async function mihSelectDay(date){
       +'<button onclick="mihActionDay(this.dataset.k,this.dataset.id,this.dataset.ac)" data-k="'+k+'" data-id="'+p.id+'" data-ac="add" style="width:100%;padding:8px;border-radius:var(--radius-sm);border:0.5px solid var(--blue);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer">+ Añadir a este día</button>'
       +'</div>';
   }
+  const iconsCome=p.come?' 🍔':'',iconsDuerme=p.duerme?' 🛏️':'';
   detail.innerHTML='<div class="day-card" style="margin-top:8px">'
-    +'<div class="day-card-header"><div class="day-card-title">'+label+'</div></div>'
+    +'<div class="day-card-header"><div class="day-card-title">'+label+'</div>'
+    +(iconsCome||iconsDuerme?'<div style="font-size:14px;margin-top:2px">'+iconsCome+iconsDuerme+'</div>':'')
+    +'</div>'
     +'<div class="day-card-body">'+bodyHtml+actionHtml+'</div></div>';
 }
 
