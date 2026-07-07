@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v10.0</title>
+<title>El Náutico · Gestión v10.2</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -1266,6 +1266,8 @@ function renderDayView(){
   </div>`:'';
 
   const wcardsSorted=[...srt].sort((a,b)=>{
+    if(a.deleted&&!b.deleted) return 1;
+    if(!a.deleted&&b.deleted) return -1;
     const pa=STAFF.find(x=>x.id===a.id),pb=STAFF.find(x=>x.id===b.id);
     return(pa?.nombre||'').localeCompare(pb?.nombre||'','es');
   });
@@ -1274,12 +1276,14 @@ function renderDayView(){
     const c=ci(p.id);
     const h=a.deleted?'—':calcHFromSlots(a.slots)+'h';
     const barColor=a.added?'#d42020':a.deleted?'#ccc':BC[c];
-    const nameColor=a.added?'color:#d42020':a.deleted?'color:#aaa;text-decoration:line-through':'';
+    const nameColor=a.added?'color:#d42020':a.deleted?(a.vacaciones?'color:#18a050;text-decoration:line-through':a.baja?'color:#888;text-decoration:line-through':'color:#aaa;text-decoration:line-through'):'';
     const actionBtn=a.deleted
       ?'<button class="rm-btn" style="color:var(--blue);border-color:var(--blue)" data-k="'+k+'" data-id="'+a.id+'" onclick="restoreWEl(this)" title="Restaurar">↩</button>'
       :'<button class="rm-btn" style="color:var(--accent);border-color:var(--accent)" data-k="'+k+'" data-id="'+a.id+'" data-name="'+p.nombre+' '+p.ape+'" onclick="askRemoveWEl(this)" title="Eliminar">✕</button>';
+    const deletedLabel=a.vacaciones?'(vacaciones)':a.baja?'(baja)':'(eliminado)';
+    const deletedColor=a.vacaciones?'#18a050':a.baja?'#888':'#aaa';
     const horContent=a.deleted
-      ?`<div style="font-size:11px;color:#aaa;margin-top:4px">${a.entrada}–${a.salida} (eliminado)</div>`
+      ?`<div style="font-size:11px;color:${deletedColor};margin-top:4px">${a.entrada}–${a.salida} ${deletedLabel}</div>`
       :horRow(a,k,h);
     return`<div class="wcard" style="${a.deleted?'opacity:0.5':''}">
       <div class="wcard-bar" style="background:${barColor};width:5px;border-radius:3px;flex-shrink:0;align-self:stretch;min-height:48px"></div>
