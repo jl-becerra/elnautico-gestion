@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v7.9</title>
+<title>El Náutico · Gestión v8.3</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -555,6 +555,7 @@ function dbToStaff(p) {
     zona_base: p.zona_base||'nautico',
     come: !!p.come,
     duerme: !!p.duerme,
+    activo: p.activo!==false,
     puesto: p.puesto,
     categoria: p.categoria,
     zona: p.zona,
@@ -579,6 +580,7 @@ function staffToDb(p) {
     zona_base: p.zona_base||'nautico',
     come: !!p.come,
     duerme: !!p.duerme,
+    activo: p.activo!==false,
     puesto: p.puesto,
     categoria: p.categoria || p.puesto,
     zona: p.zona || '',
@@ -594,6 +596,7 @@ function staffToDb(p) {
     zona_base: p.zona_base||'nautico',
     come: p.come||false,
     duerme: p.duerme||false,
+    activo: p.activo!==false,
   };
 }
 
@@ -606,8 +609,10 @@ let dbLoaded = false;
 async function loadStaff() {
   try {
     const rows = await supa.get('personal', 'order=color_idx.asc');
-    STAFF = rows.map(dbToStaff);
-    adminStaff = STAFF.map(p => ({...p}));
+    STAFF = rows.map(dbToStaff).filter(p=>p.activo!==false);
+    const inactivos = rows.map(dbToStaff).filter(p=>p.activo===false);
+    adminStaff = [...STAFF, ...inactivos].map(p=>({...p}));
+    // adminStaff set in loadStaff above
     // Populate ALIAS from DB
     STAFF.forEach(p=>{ ALIAS[p.id]=p.alias||p.nombre; });
     dbLoaded = true;
@@ -1252,6 +1257,7 @@ function renderDayView(){
     </select>
     <div class="add-row">
       <button class="btn-ok" onclick="askAddWorker('${k}')">Añadir</button>
+      <button class="dialog-cancel" style="background:#e6f4ea;color:#18a050;border:0.5px solid #18a050" onclick="askAddVacaciones('${k}')">Vacaciones</button>
       <button class="btn-no" onclick="cancelAdd()">Cancelar</button>
     </div>
   </div>`:'';
@@ -1531,6 +1537,29 @@ function askAddWorker(k){
 function toggleAdd(){showAdd=!showAdd;renderDayView();}
 function cancelAdd(){showAdd=false;renderDayView();}
 
+async function askAddVacaciones(k){
+  if(isPast(k)&&!await confirmPast())return;
+  const sel=document.getElementById('add-sel');
+  if(!sel)return;
+  const id=parseInt(sel.value);
+  const p=STAFF.find(x=>x.id===id);
+  if(!p)return;
+  showDlg('Marcar vacaciones','¿Marcar vacaciones a '+p.nombre+' '+p.ape+' el '+k+'?',false,async()=>{
+    const ent=p.hor?p.hor.split('-')[0]:'';
+    const sal=p.hor?p.hor.split('-').slice(1).join('-'):'';
+    const slts=activeSlots(p.hor||'');
+    const zonaV=p.zona_base||'nautico';
+    await saveDayAssignment(k,p.db_id,ent,sal,slts,'vacaciones',zonaV);
+    // Add to dayData as deleted+vacaciones
+    if(!dayData[k]) dayData[k]=[];
+    const existing=dayData[k].find(x=>x.id===id);
+    if(existing){existing.deleted=true;existing.vacaciones=true;existing.baja=false;}
+    else dayData[k].push({id,db_id:p.db_id,entrada:ent,salida:sal,slots:slts,deleted:true,vacaciones:true,baja:false,added:false,zona:zonaV});
+    showAdd=false;
+    renderDayView();
+  });
+}
+
 // renderStaff merged into renderAdminList
 
 // ── INFORMES ──
@@ -1780,16 +1809,19 @@ function exportPersonalPDF(){
   const fecha=now.getDate()+'/'+(now.getMonth()+1)+'/'+now.getFullYear();
   const DIAS=['L','M','X','J','V','S','D'];
 
-  const adminSorted=[...adminStaff].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+  const adminActivos=[...adminStaff].filter(p=>p.activo!==false).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+  const adminInactivos=[...adminStaff].filter(p=>p.activo===false).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+  const adminSorted=[...adminActivos,...adminInactivos];
   let rows='';
   adminSorted.forEach(p=>{
+    const inactivo=p.activo===false;
     const hd=p.horasDia||[0,0,0,0,0,0,0];
     const hSem=hd.reduce((a,b)=>a+b,0);
     const libra=DIAS.filter((_,i)=>!p.dias.includes(i)).join(' ')||'—';
     const isSplit=p.hor&&p.hor.includes('/');
     const isNoche=(()=>{const h=parseInt((p.hor||'0').split('/')[0]);return h>=17||h<8;})();
-    rows+=`<tr>
-      <td>${p.nombre} ${p.ape}</td>
+    rows+=`<tr style="${inactivo?'opacity:0.45;color:#aaa;text-decoration:line-through;':''}">
+      <td>${p.nombre} ${p.ape}${inactivo?' <span style="font-size:10px;color:#aaa">(inactivo)</span>':''}</td>
       <td>${p.puesto||''}</td>
       <td>${p.eficiencia||''}</td>
       <td>${p.honorarios||''}€/h</td>
@@ -2314,14 +2346,21 @@ function saveWorker(){
   );
 }
 
-function confirmDeleteWorker(idx){
+async function confirmDeleteWorker(idx){
   const p=adminStaff[idx];
-  showDlg('Dar de baja','¿Dar de baja a '+p.nombre+' '+p.ape+'? Se eliminará del equipo.',true,()=>{
-    if(p.db_id) supa.delete('personal','id=eq.'+p.db_id).catch(e=>console.error(e));
-    adminStaff.splice(idx,1);
-    STAFF.splice(idx,1);
-    renderAdminList();
-  });
+  if(p.activo===false){
+    showDlg('Reactivar trabajador','¿Reactivar a '+p.nombre+' '+p.ape+'?',false,async()=>{
+      await supa.upsert('personal',{id:p.db_id,activo:true},'id').catch(e=>console.error(e));
+      p.activo=true;
+      const sp=STAFF.find(x=>x.db_id===p.db_id);if(sp) sp.activo=true;
+      await loadStaff();renderAdminList();
+    });
+  } else {
+    showDlg('Desactivar trabajador','¿Desactivar a '+p.nombre+' '+p.ape+'? Sus datos se conservan y puede reactivarse.',true,async()=>{
+      await supa.upsert('personal',{id:p.db_id,activo:false},'id').catch(e=>console.error(e));
+      await loadStaff();renderAdminList();
+    });
+  }
 }
 
 
