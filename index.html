@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v8.5</title>
+<title>El Náutico · Gestión v8.6</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -1813,8 +1813,9 @@ function exportPersonalPDF(){
   const adminInactivos=[...adminStaff].filter(p=>p.activo===false).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
   const adminSorted=[...adminActivos,...adminInactivos];
   let rows='';
-  adminSorted.forEach(p=>{
+  adminSorted.forEach((p,i)=>{
     const inactivo=p.activo===false;
+    const realIdx=adminStaff.findIndex(x=>x.db_id===p.db_id);
     const hd=p.horasDia||[0,0,0,0,0,0,0];
     const hSem=hd.reduce((a,b)=>a+b,0);
     const libra=DIAS.filter((_,i)=>!p.dias.includes(i)).join(' ')||'—';
