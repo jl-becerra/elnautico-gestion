@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v9.7</title>
+<title>El Náutico · Gestión v9.9</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -2450,8 +2450,13 @@ async function mihLoadMonth(){
     const rows=await supa.get('horarios_dia','fecha=gte.'+from+'&fecha=lte.'+to+'&personal_id=eq.'+p.db_id);
     rows.forEach(r=>{
       const d=new Date(r.fecha+'T00:00:00');
-      // Skip 'activo' only if zona matches zona_base (truly restored to base)
-      if(r.estado==='activo'&&(r.zona||'nautico')===(p.zona_base||'nautico')) return;
+      if(r.estado==='activo'){
+        // Keep activo if zona differs from base OR if slots differ from base schedule
+        const baseSlots=activeSlots(p.hor||'');
+        const modSlots=new Set((r.slots||[]).map(Number));
+        const slotsMatch=baseSlots.size===modSlots.size&&[...baseSlots].every(s=>modSlots.has(s));
+        if(slotsMatch&&(r.zona||'nautico')===(p.zona_base||'nautico')) return;
+      }
       // Skip 'eliminado' for workers outside their contract period
       if(r.estado==='eliminado'&&!isAvail(p,d)) return;
       mihMods[d.getDate()]=r;
@@ -2586,7 +2591,7 @@ async function mihSelectDay(date){
   } else if(isElim||isBaja||isVac){
     actionHtml='<div style="margin-top:12px">'
       +'<button onclick="mihActionDay(this.dataset.k,this.dataset.id,this.dataset.ac)" data-k="'+k+'" data-id="'+p.id+'" data-ac="restore" style="width:100%;padding:8px;border-radius:var(--radius-sm);border:0.5px solid var(--blue);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer">↩ Restaurar</button>'
-      +'</div>';
+      +'</div>';+(isElim?'<div style="margin-top:6px">'+vacMihBtn+'</div>':'')
   } else if(!works){
     actionHtml='<div style="margin-top:12px">'
       +'<button onclick="mihActionDay(this.dataset.k,this.dataset.id,this.dataset.ac)" data-k="'+k+'" data-id="'+p.id+'" data-ac="add" style="width:100%;padding:8px;border-radius:var(--radius-sm);border:0.5px solid var(--blue);background:var(--blue-bg);color:var(--blue);font-size:13px;cursor:pointer">+ Añadir a este día</button>'
