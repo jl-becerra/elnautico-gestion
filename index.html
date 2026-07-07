@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v8.3</title>
+<title>El Náutico · Gestión v8.4</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -2135,7 +2135,7 @@ function renderAdminList(){
       +'<span class="badge badge-'+(esFijo?'fijo':'dias')+'">'+(esFijo?'Fijo':'Por días')+'</span>'
       +'<div class="admin-actions">'
       +'<button class="btn-edit" onclick="openWorkerForm('+i+')">Editar</button>'
-      +'<button class="btn-del" onclick="confirmDeleteWorker('+i+')">Baja</button>'
+      +'<button class="btn-del" onclick="confirmDeleteWorker('+i+')" title="'+(p.activo===false?'Reactivar':'Desactivar')+'">'+(p.activo===false?'↩ Reactivar':'Desactivar')+'</button>'
       +'</div></div>'
       +'</div>';
   }).join('');
