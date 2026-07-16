@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v10.8</title>
+<title>El Náutico · Gestión v10.9</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -506,7 +506,7 @@ async function importBackupExcel(input){
 
 // ── SUPABASE ────────────────────────────────────────────────────
 // ── SUPABASE CONFIG ─────────────────────────────────────────────
-// Sustituye TU_SUPABASE_KEY por tu anon/public key de Supabase
+// Sustituye sb_publishable_Kzp4EdkK5b6J9qMI5YZwaQ_L1Vsafff por tu anon/public key de Supabase
 const SUPA_URL = 'https://ygljrtonvowmgidfdect.supabase.co';
 const SUPA_KEY = 'sb_publishable_Kzp4EdkK5b6J9qMI5YZwaQ_L1Vsafff';
 
@@ -581,6 +581,7 @@ function dbToStaff(p) {
     come: !!p.come,
     duerme: !!p.duerme,
     activo: p.activo!==false,
+    horarios_dow: p.horarios_dow||null,
     puesto: p.puesto,
     categoria: p.categoria,
     zona: p.zona,
@@ -606,6 +607,7 @@ function staffToDb(p) {
     come: !!p.come,
     duerme: !!p.duerme,
     activo: p.activo!==false,
+    horarios_dow: p.horarios_dow||null,
     puesto: p.puesto,
     categoria: p.categoria || p.puesto,
     zona: p.zona || '',
@@ -622,6 +624,7 @@ function staffToDb(p) {
     come: p.come||false,
     duerme: p.duerme||false,
     activo: p.activo!==false,
+    horarios_dow: p.horarios_dow||null,
   };
 }
 
@@ -726,6 +729,11 @@ function ci(id){return id%26}
 const ALIAS={0: "Marce", 1: "Dani", 2: "Bruno", 3: "Isa", 4: "Loren", 5: "Galindo", 6: "Sheilu", 7: "Yago Toro", 8: "Vasco", 9: "Kike", 10: "Bryan", 11: "Jacobo", 12: "Telle", 13: "Víctor", 14: "Juan", 15: "Matías", 16: "Iago Cuiña", 17: "Gael", 18: "Albita", 19: "Carmen Oria", 20: "Ahmed", 21: "Ángela", 22: "Brais", 23: "Jorge", 24: "Lulú", 25: "Fandiño"};
 function alias(p){ return p.alias||ALIAS[p.id]||p.nombre.split(' ')[0]+' '+(p.ape?p.ape[0].toUpperCase()+'.':''); }
 
+function getHorForDay(p,date){
+  if(p.horarios_dow){const dow=String(date.getDay());if(p.horarios_dow[dow])return p.horarios_dow[dow];}
+  return p.hor||'';
+}
+
 function isAvail(p,date){
   if(date<parseD(p.inicio)||date>parseD(p.fin))return false;
   return p.dias.includes(dowL(date));
@@ -816,7 +824,7 @@ async function buildDay(date){
 
   // Base workers from STAFF
   const base=STAFF.filter(p=>isAvail(p,date)).map(p=>{
-    const hor=p.hor||'';
+    const hor=getHorForDay(p,date);
     const dashIdx=hor.indexOf('-');
     const entrada=dashIdx>=0?hor.substring(0,dashIdx):'';
     const salida=dashIdx>=0?hor.substring(dashIdx+1):'';
@@ -1122,7 +1130,7 @@ async function askUpdHorEl(inputEl){
     return;
   }
   a.slots=newSlots;
-  saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':'activo',a.zona||'nautico');
+  saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':a.deleted?(a.baja?'baja':a.vacaciones?'vacaciones':'eliminado'):'activo',a.zona||'nautico');
   renderDayView();
 }
 
@@ -1136,7 +1144,7 @@ function askAddFranjaEl(btn){
     entradas.push('19:00');salidas.push('22:00');
     a.entrada=entradas.join('/');a.salida=salidas.join('/');
     a.slots=activeSlots(a.entrada,a.salida);
-    saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':'activo');
+    saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':a.deleted?(a.baja?'baja':a.vacaciones?'vacaciones':'eliminado'):'activo');
     renderDayView();
   });
 }
@@ -1150,7 +1158,7 @@ function askRemoveFranjaEl(btn){
     entradas.splice(fi,1);salidas.splice(fi,1);
     a.entrada=entradas.join('/');a.salida=salidas.join('/');
     a.slots=activeSlots(a.entrada,a.salida);
-    saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':'activo');
+    saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':a.deleted?(a.baja?'baja':a.vacaciones?'vacaciones':'eliminado'):'activo');
     renderDayView();
   });
 }
@@ -1417,7 +1425,7 @@ async function askToggleSlotEl(btn,adding){
     if(adding)a.slots.add(slot);else a.slots.delete(slot);
     const hor=slotsToHorario(a.slots);
     a.entrada=hor.entrada;a.salida=hor.salida;
-    saveDayAssignment(k,a.db_id||a.id,a.entrada,a.salida,a.slots,a.added?'añadido':'activo');
+    saveDayAssignment(k,a.db_id||a.id,a.entrada,a.salida,a.slots,a.added?'añadido':a.deleted?(a.baja?'baja':a.vacaciones?'vacaciones':'eliminado'):'activo');
     renderDayView();
   });
 }
@@ -1499,7 +1507,7 @@ function restoreWEl(el){
   showDlg(isVac?'Anular vacaciones':isBaja?'Anular baja':'Restaurar trabajador',
     (isVac?'¿Anular las vacaciones de ':isBaja?'¿Anular la baja médica de ':'¿Restaurar a ')+(p?p.nombre+' '+p.ape:'')+' en este día?',
     false,()=>{
-    if(a){a.deleted=false;a.baja=false;a.vacaciones=false;saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':'activo');}
+    if(a){a.deleted=false;a.baja=false;a.vacaciones=false;saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':a.deleted?(a.baja?'baja':a.vacaciones?'vacaciones':'eliminado'):'activo');}
     renderDayView();
   });
 }
@@ -2398,6 +2406,7 @@ function saveWorker(){
     honorariosDesde: document.getElementById('f-honorarios-desde').value||todayStr(),
     come: document.getElementById('f-come')?.checked||false,
     duerme: document.getElementById('f-duerme')?.checked||false,
+    horarios_dow: (()=>{const dow={};[1,2,3,4,5,6,0].forEach(d=>{const v=(document.getElementById('f-dow-'+d)?.value||'').trim();if(v)dow[d]=v;});return Object.keys(dow).length?dow:null;})(),
     hSem, horasDia, dias,
     inicio: document.getElementById('f-inicio').value,
     fin: document.getElementById('f-fin').value,
