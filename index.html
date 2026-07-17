@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v11.3</title>
+<title>El Náutico · Gestión v11.5</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -674,30 +674,36 @@ async function saveDayAssignment(fecha, personalId, entrada, salida, slots, esta
     zona,
     updated_at: new Date().toISOString()
   };
+  // Snapshot state BEFORE the change is applied to dayData
+  const snapshotBefore=dayData[fecha]?dayData[fecha].map(x=>({...x})):null;
+
+  const revertToPre=async()=>{
+    // Try reload from DB first
+    try{
+      delete dayData[fecha];
+      await loadDayAssignments(fecha);
+    }catch(e){
+      // No connection — restore snapshot
+      if(snapshotBefore) dayData[fecha]=snapshotBefore;
+      else delete dayData[fecha];
+    }
+    renderDayView();
+  };
+
   const doSave = async () => {
     await supa.upsert('horarios_dia', payload, 'fecha,personal_id');
     mihMods={};
     delete calCounts[fecha];
     renderCal();
   };
+
   try {
     await doSave();
   } catch(e) {
     console.error('Error guardando horario:', e);
-    // Save current state before attempting reload
-    const prevDayData=dayData[fecha]?[...dayData[fecha]]:null;
-    // Try to reload from DB to revert
-    try{
-      delete dayData[fecha];
-      await loadDayAssignments(fecha);
-    }catch(e2){
-      // No connection — restore previous state
-      if(prevDayData) dayData[fecha]=prevDayData;
-    }
-    renderDayView();
+    await revertToPre();
     // Show retry banner
     const retryFn=async()=>{
-      // Show spinner while retrying
       const bar=document.getElementById('save-error-bar');
       if(bar) bar.innerHTML='⏳ Reintentando...';
       try {
@@ -707,16 +713,19 @@ async function saveDayAssignment(fecha, personalId, entrada, salida, slots, esta
         renderDayView();
       } catch(e2) {
         console.error('Retry failed:', e2);
-        if(prevDayData&&!dayData[fecha]) dayData[fecha]=prevDayData;
-        renderDayView();
+        await revertToPre();
         showSaveError(retryFn);
       }
     };
-    showSaveError(retryFn);
+    const cancelFn=async()=>{
+      hideSaveError();
+      await revertToPre();
+    };
+    showSaveError(retryFn, cancelFn);
   }
 }
 
-function showSaveError(retryCb){
+function showSaveError(retryCb, cancelCb){
   let bar=document.getElementById('save-error-bar');
   if(!bar){
     bar=document.createElement('div');
@@ -725,8 +734,10 @@ function showSaveError(retryCb){
     document.body.appendChild(bar);
   }
   bar.innerHTML='⚠️ Error al guardar — comprueba la conexión'
-    +(retryCb?'<div style="display:flex;gap:8px"><button onclick="window._saveRetry&&window._saveRetry()" style="padding:6px 14px;border-radius:6px;border:none;background:#fff;color:#d42020;font-weight:600;cursor:pointer">Reintentar</button><button onclick="hideSaveError()" style="padding:6px 14px;border-radius:6px;border:none;background:rgba(255,255,255,0.2);color:#fff;cursor:pointer">Cancelar</button></div>':'');
+    +(retryCb?'<div style="display:flex;gap:8px"><button onclick="window._saveRetry&&window._saveRetry()" style="padding:6px 14px;border-radius:6px;border:none;background:#fff;color:#d42020;font-weight:600;cursor:pointer">Reintentar</button><button onclick="window._saveCancel&&window._saveCancel()" style="padding:6px 14px;border-radius:6px;border:none;background:rgba(255,255,255,0.2);color:#fff;cursor:pointer">Cancelar</button></div>':'');
   if(retryCb) window._saveRetry=retryCb;
+  if(cancelCb) window._saveCancel=cancelCb;
+  else window._saveCancel=hideSaveError;
   bar.style.display='flex';
 }
 function hideSaveError(){
@@ -1382,10 +1393,10 @@ function renderDayView(){
   const nActivos=raw.filter(a=>!a.deleted).length;
   const nEliminados=raw.filter(a=>a.deleted).length;
   // Summary counts
-  const nDay=srtDay.length;
-  const nEve=srtEve.length;
-  const nCoc=srtCoc.length;
-  const nOtro=srtOtro.length;
+  const nDay=srtDay.filter(a=>!a.deleted).length;
+  const nEve=srtEve.filter(a=>!a.deleted).length;
+  const nCoc=srtCoc.filter(a=>!a.deleted).length;
+  const nOtro=srtOtro.filter(a=>!a.deleted).length;
   // Come count: Náutico + Coctelería (not El Otro - separate location)
   const nComeDay=[...srtDay,...srtCocDay].filter(a=>{const p=STAFF.find(x=>x.id===a.id);return p?.come;}).length;
   const nComeEve=[...srtEve,...srtCocEve].filter(a=>{const p=STAFF.find(x=>x.id===a.id);return p?.come;}).length;
