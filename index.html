@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v11.1</title>
+<title>El Náutico · Gestión v11.3</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -684,17 +684,22 @@ async function saveDayAssignment(fecha, personalId, entrada, salida, slots, esta
     await doSave();
   } catch(e) {
     console.error('Error guardando horario:', e);
-    // Revert in-memory change and reload from DB
+    // Save current state before attempting reload
+    const prevDayData=dayData[fecha]?[...dayData[fecha]]:null;
+    // Try to reload from DB to revert
     try{
       delete dayData[fecha];
       await loadDayAssignments(fecha);
-      renderDayView();
     }catch(e2){
-      // No connection to reload either — just re-render what we had
-      renderDayView();
+      // No connection — restore previous state
+      if(prevDayData) dayData[fecha]=prevDayData;
     }
+    renderDayView();
     // Show retry banner
     const retryFn=async()=>{
+      // Show spinner while retrying
+      const bar=document.getElementById('save-error-bar');
+      if(bar) bar.innerHTML='⏳ Reintentando...';
       try {
         await doSave();
         hideSaveError();
@@ -702,6 +707,8 @@ async function saveDayAssignment(fecha, personalId, entrada, salida, slots, esta
         renderDayView();
       } catch(e2) {
         console.error('Retry failed:', e2);
+        if(prevDayData&&!dayData[fecha]) dayData[fecha]=prevDayData;
+        renderDayView();
         showSaveError(retryFn);
       }
     };
