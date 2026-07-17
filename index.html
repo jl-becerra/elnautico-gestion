@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v11.6</title>
+<title>El Náutico · Gestión v11.8</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -663,7 +663,7 @@ function showError(msg) {
 }
 
 // Guarda modificación de día en BD
-async function saveDayAssignment(fecha, personalId, entrada, salida, slots, estado, zona='nautico') {
+async function saveDayAssignment(fecha, personalId, entrada, salida, slots, estado, zona='nautico', _snapshotPre=null) {
   const payload = {
     fecha,
     personal_id: personalId,
@@ -682,30 +682,18 @@ async function saveDayAssignment(fecha, personalId, entrada, salida, slots, esta
     renderCal();
   };
 
-  // Take snapshot BEFORE attempting save (dayData already has the new state at this point)
-  const snapshotAfter=dayData[fecha]?dayData[fecha].map(x=>({...x})):null;
-
-  // Restore pre-change state: try DB reload, fall back to pre-save snapshot from DB
-  const restoreFromDB=async()=>{
-    try{
-      delete dayData[fecha];
-      await loadDayAssignments(fecha);
-      renderDayView();
-    }catch(e){
-      // Still no connection — keep whatever is in dayData (may be empty)
-      // Try to at least show something
-      if(snapshotAfter) dayData[fecha]=snapshotAfter;
-      renderDayView();
-    }
-  };
+  // Use caller-provided snapshot (taken before mutation) or current state
+  const snapshotPre=_snapshotPre||(dayData[fecha]?dayData[fecha].map(x=>({...x})):null);
 
   try {
     await doSave();
   } catch(e) {
     console.error('Error guardando horario:', e);
-    // Revert to DB state
-    await restoreFromDB();
-    // Show banner with retry/cancel
+    // Restore pre-change state directly from snapshot — no network needed
+    if(snapshotPre) dayData[fecha]=snapshotPre;
+    else delete dayData[fecha];
+    renderDayView();
+    // Show banner
     const showBanner=()=>{
       const retryFn=async()=>{
         const bar=document.getElementById('save-error-bar');
@@ -713,12 +701,23 @@ async function saveDayAssignment(fecha, personalId, entrada, salida, slots, esta
         try {
           await doSave();
           hideSaveError();
-          // Reload confirmed state from DB
-          try{delete dayData[fecha];await loadDayAssignments(fecha);}catch(e3){}
+          // Reload from DB to get authoritative state
+          const rows=await loadDayAssignments(fecha);
+          if(rows&&rows.length) dayData[fecha]=rows.map(r=>({
+            id:STAFF.find(p=>p.db_id===r.personal_id)?.id||r.personal_id,
+            db_id:r.personal_id,entrada:r.entrada,salida:r.salida,
+            slots:new Set((r.slots||[]).map(Number)),
+            added:r.estado==='añadido',
+            deleted:r.estado==='eliminado'||r.estado==='baja'||r.estado==='vacaciones',
+            baja:r.estado==='baja',vacaciones:r.estado==='vacaciones',zona:r.zona||'nautico'
+          }));
           renderDayView();
         } catch(e2) {
           console.error('Retry failed:', e2);
-          // Keep current DB state visible, show banner again
+          // Keep snapshot visible, show banner again
+          if(snapshotPre) dayData[fecha]=snapshotPre;
+          else delete dayData[fecha];
+          renderDayView();
           showBanner();
         }
       };
@@ -1195,6 +1194,7 @@ async function askUpdHorEl(inputEl){
     renderDayView();
     return;
   }
+  const _spH=dayData[k]?dayData[k].map(x=>({...x})):null;
   a.slots=newSlots;
   saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':a.deleted?(a.baja?'baja':a.vacaciones?'vacaciones':'eliminado'):'activo',a.zona||'nautico');
   renderDayView();
@@ -1209,8 +1209,9 @@ function askAddFranjaEl(btn){
     const salidas=a.salida?a.salida.split('/'):[''];
     entradas.push('19:00');salidas.push('22:00');
     a.entrada=entradas.join('/');a.salida=salidas.join('/');
+    const _spF=dayData[k]?dayData[k].map(x=>({...x})):null;
     a.slots=activeSlots(a.entrada,a.salida);
-    saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':a.deleted?(a.baja?'baja':a.vacaciones?'vacaciones':'eliminado'):'activo');
+    saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':a.deleted?(a.baja?'baja':a.vacaciones?'vacaciones':'eliminado'):'activo','nautico',_spF);
     renderDayView();
   });
 }
@@ -1223,8 +1224,9 @@ function askRemoveFranjaEl(btn){
     const salidas=a.salida?a.salida.split('/'):[''];
     entradas.splice(fi,1);salidas.splice(fi,1);
     a.entrada=entradas.join('/');a.salida=salidas.join('/');
+    const _spF=dayData[k]?dayData[k].map(x=>({...x})):null;
     a.slots=activeSlots(a.entrada,a.salida);
-    saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':a.deleted?(a.baja?'baja':a.vacaciones?'vacaciones':'eliminado'):'activo');
+    saveDayAssignment(k,a.db_id,a.entrada,a.salida,a.slots,a.added?'añadido':a.deleted?(a.baja?'baja':a.vacaciones?'vacaciones':'eliminado'):'activo','nautico',_spF);
     renderDayView();
   });
 }
