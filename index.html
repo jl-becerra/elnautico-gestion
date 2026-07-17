@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v12.9</title>
+<title>El Náutico · Gestión v13.0</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -924,6 +924,14 @@ async function buildDay(date){
       if(existing){existing.deleted=true;existing.baja=true;existing.vacaciones=false;existing.zona=mod.zona||existing.zona||'nautico';}
     } else if(mod.estado==='vacaciones'){
       if(existing){existing.deleted=true;existing.baja=false;existing.vacaciones=true;existing.zona=mod.zona||existing.zona||'nautico';}
+      else{
+        // Vacation on a day off — add to list as deleted+vacaciones
+        const p=STAFF.find(x=>x.db_id===mod.personal_id);
+        if(p){
+          const hor=getHorForDay(p,date);
+          workers.push({id:p.id,db_id:p.db_id,entrada:mod.entrada||hor.split('-')[0],salida:mod.salida||hor.split('-').slice(1).join('-'),slots:new Set((mod.slots||[]).map(Number)),added:false,deleted:true,baja:false,vacaciones:true,zona:mod.zona||p.zona_base||'nautico'});
+        }
+      }
     } else if(mod.estado==='añadido'){
       const p=STAFF.find(x=>x.db_id===mod.personal_id);
       if(!existing&&p){
