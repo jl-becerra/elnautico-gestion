@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v11.5</title>
+<title>El Náutico · Gestión v11.6</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -674,21 +674,6 @@ async function saveDayAssignment(fecha, personalId, entrada, salida, slots, esta
     zona,
     updated_at: new Date().toISOString()
   };
-  // Snapshot state BEFORE the change is applied to dayData
-  const snapshotBefore=dayData[fecha]?dayData[fecha].map(x=>({...x})):null;
-
-  const revertToPre=async()=>{
-    // Try reload from DB first
-    try{
-      delete dayData[fecha];
-      await loadDayAssignments(fecha);
-    }catch(e){
-      // No connection — restore snapshot
-      if(snapshotBefore) dayData[fecha]=snapshotBefore;
-      else delete dayData[fecha];
-    }
-    renderDayView();
-  };
 
   const doSave = async () => {
     await supa.upsert('horarios_dia', payload, 'fecha,personal_id');
@@ -697,31 +682,50 @@ async function saveDayAssignment(fecha, personalId, entrada, salida, slots, esta
     renderCal();
   };
 
+  // Take snapshot BEFORE attempting save (dayData already has the new state at this point)
+  const snapshotAfter=dayData[fecha]?dayData[fecha].map(x=>({...x})):null;
+
+  // Restore pre-change state: try DB reload, fall back to pre-save snapshot from DB
+  const restoreFromDB=async()=>{
+    try{
+      delete dayData[fecha];
+      await loadDayAssignments(fecha);
+      renderDayView();
+    }catch(e){
+      // Still no connection — keep whatever is in dayData (may be empty)
+      // Try to at least show something
+      if(snapshotAfter) dayData[fecha]=snapshotAfter;
+      renderDayView();
+    }
+  };
+
   try {
     await doSave();
   } catch(e) {
     console.error('Error guardando horario:', e);
-    await revertToPre();
-    // Show retry banner
-    const retryFn=async()=>{
-      const bar=document.getElementById('save-error-bar');
-      if(bar) bar.innerHTML='⏳ Reintentando...';
-      try {
-        await doSave();
-        hideSaveError();
-        try{delete dayData[fecha];await loadDayAssignments(fecha);}catch(e3){}
-        renderDayView();
-      } catch(e2) {
-        console.error('Retry failed:', e2);
-        await revertToPre();
-        showSaveError(retryFn);
-      }
+    // Revert to DB state
+    await restoreFromDB();
+    // Show banner with retry/cancel
+    const showBanner=()=>{
+      const retryFn=async()=>{
+        const bar=document.getElementById('save-error-bar');
+        if(bar) bar.innerHTML='⏳ Reintentando...';
+        try {
+          await doSave();
+          hideSaveError();
+          // Reload confirmed state from DB
+          try{delete dayData[fecha];await loadDayAssignments(fecha);}catch(e3){}
+          renderDayView();
+        } catch(e2) {
+          console.error('Retry failed:', e2);
+          // Keep current DB state visible, show banner again
+          showBanner();
+        }
+      };
+      const cancelFn=()=>{ hideSaveError(); };
+      showSaveError(retryFn, cancelFn);
     };
-    const cancelFn=async()=>{
-      hideSaveError();
-      await revertToPre();
-    };
-    showSaveError(retryFn, cancelFn);
+    showBanner();
   }
 }
 
