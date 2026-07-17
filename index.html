@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v12.0</title>
+<title>El Náutico · Gestión v12.1</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -1495,10 +1495,11 @@ async function askToggleSlotEl(btn,adding){
   showDlg(adding?'Añadir media hora':'Quitar media hora',msg,!adding,()=>{
     const a=(dayData[k]||[]).find(x=>x.id===id);
     if(!a)return;
+    const _spT=dayData[k]?dayData[k].map(x=>({...x,slots:new Set(x.slots)})):null;
     if(adding)a.slots.add(slot);else a.slots.delete(slot);
     const hor=slotsToHorario(a.slots);
     a.entrada=hor.entrada;a.salida=hor.salida;
-    saveDayAssignment(k,a.db_id||a.id,a.entrada,a.salida,a.slots,a.added?'añadido':a.deleted?(a.baja?'baja':a.vacaciones?'vacaciones':'eliminado'):'activo');
+    saveDayAssignment(k,a.db_id||a.id,a.entrada,a.salida,a.slots,a.added?'añadido':a.deleted?(a.baja?'baja':a.vacaciones?'vacaciones':'eliminado'):'activo','nautico',_spT);
     renderDayView();
   });
 }
