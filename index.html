@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v13.8</title>
+<title>El Náutico · Gestión v13.9</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -2115,18 +2115,18 @@ async function genNominasPDF(){
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nóminas ${mName} ${year}</title><style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;background:#fff}
-    .pdf-page{width:210mm;padding:12mm 14mm;display:flex;flex-direction:column;gap:8px;break-after:page}
-    .pdf-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:7px}
-    .pdf-name{font-size:17px;font-weight:700}
+    .pdf-page{width:210mm;padding:14mm 14mm;display:flex;flex-direction:column;gap:11px;break-after:page}
+    .pdf-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:9px}
+    .pdf-name{font-size:19px;font-weight:700}
     .pdf-meta{font-size:11px;color:#555;margin-top:3px}
     .pdf-month-badge{font-size:14px;font-weight:700;color:#555;text-align:right}
     .pdf-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
     .pdf-cal-head{margin-bottom:3px}
     .pdf-cal-dh{text-align:center;font-size:10px;font-weight:700;color:#555;padding:3px 0}
     .pdf-cal-dh.pdf-we{color:#c44}
-    .pdf-cal-day{position:relative;border-radius:5px;border:0.5px solid #ddd;padding:3px 2px;text-align:center;min-height:32px;overflow:hidden}
+    .pdf-cal-day{position:relative;border-radius:5px;border:0.5px solid #ddd;padding:3px 2px;text-align:center;min-height:38px;overflow:hidden}
     .pdf-we-day{border-color:#f0c0c0}
-    .pdf-dnum{font-size:11px;font-weight:700;position:relative;z-index:1}
+    .pdf-dnum{font-size:12px;font-weight:700;position:relative;z-index:1}
     .pdf-we-num{color:#c44}
     .pdf-dot{width:5px;height:5px;border-radius:50%;margin:2px auto 0;position:relative;z-index:1}
     .pdf-zona{font-size:8px;font-weight:700;color:#7020c8;line-height:1;margin-top:1px}
@@ -2134,12 +2134,12 @@ async function genNominasPDF(){
     .pdf-x-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;color:#d42020;opacity:0.3;pointer-events:none}
     .pdf-icon{position:absolute;font-size:7px;top:1px;right:2px}
     .pdf-icon-l{right:auto;left:2px}
-    .pdf-divider{border-top:1px solid #ddd;margin:2px 0}
+    .pdf-divider{border-top:1px solid #ddd;margin:3px 0}
     .pdf-res-table{width:100%;border-collapse:collapse}
     .pdf-res-table tr{border-bottom:0.5px solid #eee}
-    .pdf-res-label{padding:3px 4px;color:#444;font-size:11px}
-    .pdf-res-val{padding:3px 4px;text-align:right;font-size:11px;font-weight:600}
-    .pdf-total-row td{border-top:2px solid #111;padding-top:6px;font-size:13px;font-weight:700;color:#111}
+    .pdf-res-label{padding:4px 4px;color:#444;font-size:11.5px}
+    .pdf-res-val{padding:4px 4px;text-align:right;font-size:11.5px;font-weight:600}
+    .pdf-total-row td{border-top:2px solid #111;padding-top:7px;font-size:14px;font-weight:700;color:#111}
     @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.pdf-page{break-after:page}.pdf-page:last-child{break-after:avoid}}
   </style></head><body>${pages}</body></html>`);
   w.document.close();
