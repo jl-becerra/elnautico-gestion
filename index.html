@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v13.2</title>
+<title>El Náutico · Gestión v13.3</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -1886,7 +1886,7 @@ async function genNominasExcel(){
       let isVac=false;
       let zona=p.zona_base||'nautico';
       if(mod){
-        if(mod.estado==='eliminado'||mod.estado==='baja') works=false;
+        if(mod.estado==='eliminado'||mod.estado==='baja'){works=false;if(mod.estado==='baja') bajaDias++;}
         else if(mod.estado==='vacaciones'){works=true;isVac=true;}
         else if(mod.estado==='añadido') works=true;
         if(works&&mod.slots&&mod.slots.length) h=mod.slots.length*0.5;
@@ -1984,7 +1984,7 @@ async function genNominasPDF(){
     const color=BC[p.id%26]||'#4a90d9';
 
     // ── Compute stats ──
-    let hT=0,dT=0,dTCome=0,vacDias=0,hCoc=0,vacFechas=[];
+    let hT=0,dT=0,dTCome=0,vacDias=0,hCoc=0,bajaDias=0,vacFechas=[];
     const monthDays=[];
     for(let d=1;d<=dim;d++) monthDays.push(new Date(year,m,d));
 
@@ -2043,7 +2043,11 @@ async function genNominasPDF(){
       const isWE=date.getDay()===0||date.getDay()===6;
       const zonaD=mod?mod.zona||'nautico':p.zona_base||'nautico';
       let cls='pdf-cal-day'+(isWE?' pdf-we-day':'');
-      let bg=works?(isVac?'#f0faf4':color+'22'):'#f5f5f5';
+      let bg;
+      if(isVac) bg='#f0faf4';
+      else if(isBaja||isElim) bg='#f5f5f5';
+      else if(works) bg=color+'33';
+      else bg='#f5f5f5';
       let extra='',badge='';
       if(isVac){
         extra='<div class="pdf-vac-bg">V</div>';
@@ -2076,6 +2080,7 @@ async function genNominasPDF(){
       ['Tarifa',''+( p.honorarios||0)+' €/h',''],
       hCoc?['H. Coctelería ('+tarifaCoc+' €/h)',hCoc+' h','color:#7020c8']:null,
       vacDias?['Vacaciones',vacDias+' día'+(vacDias>1?'s':'')+' ('+vacFechas.join(', ')+')', 'color:#18a050']:null,
+      bajaDias?['Días de baja',bajaDias+' día'+(bajaDias>1?'s':''),'color:#888']:null,
       diasCome?['Comidas ('+tarifaCome+' €/día)',diasCome+' días','color:#c00']:null,
       totalDiasAloj?['Alojamiento ('+tarifaDuerme+' €/día)',totalDiasAloj+' días','color:#c00']:null,
     ].filter(Boolean);
@@ -2109,7 +2114,7 @@ async function genNominasPDF(){
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nóminas ${mName} ${year}</title><style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111;background:#fff}
-    .pdf-page{width:210mm;min-height:297mm;padding:16mm 14mm;page-break-after:always;display:flex;flex-direction:column;gap:14px}
+    .pdf-page{width:210mm;height:297mm;padding:16mm 14mm;page-break-after:always;page-break-inside:avoid;display:flex;flex-direction:column;gap:14px;overflow:hidden}
     .pdf-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:10px}
     .pdf-name{font-size:20px;font-weight:700}
     .pdf-meta{font-size:11px;color:#555;margin-top:3px}
