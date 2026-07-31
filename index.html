@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v14.0</title>
+<title>El Náutico · Gestión v14.1</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -2750,31 +2750,64 @@ async function saveWorker(){
         const dbId=adminStaff[editingIdx].db_id;
         const oldWorker={...adminStaff[editingIdx]};
         const today=todayStr();
-        // Check if horario changed
+        // Detect schedule-affecting changes
         const horChanged=oldWorker.hor!==worker.hor;
-        // Check if dias changed
         const diasChanged=JSON.stringify(oldWorker.dias)!==JSON.stringify(worker.dias);
-        // Update in memory first
-        worker.db_id=dbId;
-        adminStaff[editingIdx]=worker;
-        const staffIdx=STAFF.findIndex(p=>p.db_id===dbId);
-        if(staffIdx>=0) STAFF[staffIdx]=worker;
-        // Update personal table
-        try{
-          await supa.patch('personal','id=eq.'+dbId, staffToDb(worker));
-          // If horario or dias changed, delete future horarios_dia
-          if(horChanged||diasChanged){
-            supa.delete('horarios_dia','personal_id=eq.'+dbId+'&fecha=gte.'+today).catch(e=>console.error(e));
-            Object.keys(dayData).forEach(k=>{ if(k>=today){ delete dayData[k]; delete dayOrig[k]; delete dayStale[k]; }});
+        const dowChanged=JSON.stringify(oldWorker.horarios_dow||null)!==JSON.stringify(worker.horarios_dow||null);
+        const scheduleChanged=horChanged||diasChanged||dowChanged;
+
+        // Helper to actually persist the worker
+        const persistWorker=async(desdeStr)=>{
+          worker.db_id=dbId;
+          const staffIdx=STAFF.findIndex(p=>p.db_id===dbId);
+          const snapshot={admin:{...adminStaff[editingIdx]},staff:staffIdx>=0?{...STAFF[staffIdx]}:null};
+          adminStaff[editingIdx]=worker;
+          if(staffIdx>=0) STAFF[staffIdx]=worker;
+          try{
+            await supa.patch('personal','id=eq.'+dbId, staffToDb(worker));
+            // Invalidate dayData from desdeStr onwards
+            if(scheduleChanged&&desdeStr){
+              Object.keys(dayData).forEach(k=>{ if(k>=desdeStr){ delete dayData[k]; delete dayOrig[k]; delete dayStale[k]; }});
+            }
+          }catch(e){
+            console.error(e);
+            adminStaff[editingIdx]=snapshot.admin;
+            if(staffIdx>=0) STAFF[staffIdx]=snapshot.staff;
+            alert('⚠️ Error al guardar. Comprueba la conexión e inténtalo de nuevo.');
           }
-        }catch(e){
-          console.error(e);
-          // Revert in-memory changes
-          adminStaff[editingIdx]=oldWorker;
-          if(staffIdx>=0) STAFF[staffIdx]=oldWorker;
-          alert('⚠️ Error al guardar. Comprueba la conexión e inténtalo de nuevo. Los cambios no se han guardado.');
+          closeWorkerForm();
+          renderAdminList();
+        };
+
+        if(!scheduleChanged){
+          // No schedule change — just save
+          await persistWorker(null);
           return;
         }
+
+        // Ask "from which date"
+        const desdeStr=window.prompt('Has cambiado el horario o los d\u00edas de trabajo de '+nombre+'.\n\n\u00bfA partir de qu\u00e9 fecha entra en vigor este cambio?\n(formato YYYY-MM-DD)',todayStr());
+        if(desdeStr===null) return; // cancelled
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(desdeStr)){alert('Fecha no válida');return;}
+
+        const hoy=todayStr();
+        const isPast=desdeStr<hoy;
+        const isInConfirmado=confirmadoHasta&&desdeStr<=confirmadoHasta;
+
+        if(isPast){
+          const ok=window.confirm(
+            '⚠️ La fecha '+desdeStr+' es anterior a hoy.\n\nEsto modificará el pasado. ¿Estás seguro?'
+          );
+          if(!ok) return;
+        } else if(isInConfirmado){
+          const ok=window.confirm(
+            '⚠️ La fecha '+desdeStr+' está dentro del período confirmado (hasta '+confirmadoHasta+').\n\nEstos días ya han sido comunicados a los trabajadores. ¿Estás seguro?'
+          );
+          if(!ok) return;
+        }
+
+        await persistWorker(desdeStr);
+        return;
       } else {
         // Insert in DB
         try{
