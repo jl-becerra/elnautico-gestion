@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v14.4</title>
+<title>El Náutico · Gestión v14.5</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -2804,15 +2804,15 @@ async function saveWorker(){
 
     if(scheduleChanged){
       const hoy=todayStr();
-      const _confirmadoHasta=confirmadoHasta;
+      const _confHasta=_confirmadoHasta;
       showDlgDesde('Has cambiado el horario o los d\u00edas de trabajo de '+nombre+'. \u00bfA partir de qu\u00e9 fecha entra en vigor el cambio?',hoy,async(desdeStr)=>{
         const isPast=desdeStr<hoy;
-        const isInConfirmado=_confirmadoHasta&&desdeStr<=_confirmadoHasta;
+        const isInConfirmado=_confHasta&&desdeStr<=_confHasta;
         const fmtD2=s=>s.split('-').reverse().join('/');
         if(isPast){
           showDlg('\u26a0\ufe0f Modificar el pasado','La fecha '+fmtD2(desdeStr)+' es anterior a hoy. Esto modificar\u00e1 el pasado. \u00bfEst\u00e1s seguro?',true,async()=>{await _persistWorker(dbId,desdeStr,true);});
         } else if(isInConfirmado){
-          showDlg('\u26a0\ufe0f Per\u00edodo confirmado','La fecha '+fmtD2(desdeStr)+' est\u00e1 dentro del per\u00edodo confirmado (hasta '+fmtD2(_confirmadoHasta)+'). Estos d\u00edas ya han sido comunicados a los trabajadores. \u00bfEst\u00e1s seguro?',true,async()=>{await _persistWorker(dbId,desdeStr,true);});
+          showDlg('\u26a0\ufe0f Per\u00edodo confirmado','La fecha '+fmtD2(desdeStr)+' est\u00e1 dentro del per\u00edodo confirmado (hasta '+fmtD2(_confHasta)+'). Estos d\u00edas ya han sido comunicados a los trabajadores. \u00bfEst\u00e1s seguro?',true,async()=>{await _persistWorker(dbId,desdeStr,true);});
         } else {
           await _persistWorker(dbId,desdeStr,true);
         }
