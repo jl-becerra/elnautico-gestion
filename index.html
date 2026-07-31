@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v14.1</title>
+<title>El Náutico · Gestión v14.2</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -2741,91 +2741,79 @@ async function saveWorker(){
     fin: document.getElementById('f-fin').value,
     hor, cat:'cam',
   };
-  showDlg(
-    editingIdx!==null?'Guardar cambios':'Añadir trabajador',
-    editingIdx!==null?'¿Guardar los cambios de '+nombre+'?':'¿Añadir a '+nombre+' '+ape+' al equipo?',
-    false,
-    async ()=>{
-      if(editingIdx!==null){
-        const dbId=adminStaff[editingIdx].db_id;
-        const oldWorker={...adminStaff[editingIdx]};
-        const today=todayStr();
-        // Detect schedule-affecting changes
-        const horChanged=oldWorker.hor!==worker.hor;
-        const diasChanged=JSON.stringify(oldWorker.dias)!==JSON.stringify(worker.dias);
-        const dowChanged=JSON.stringify(oldWorker.horarios_dow||null)!==JSON.stringify(worker.horarios_dow||null);
-        const scheduleChanged=horChanged||diasChanged||dowChanged;
-
-        // Helper to actually persist the worker
-        const persistWorker=async(desdeStr)=>{
-          worker.db_id=dbId;
-          const staffIdx=STAFF.findIndex(p=>p.db_id===dbId);
-          const snapshot={admin:{...adminStaff[editingIdx]},staff:staffIdx>=0?{...STAFF[staffIdx]}:null};
-          adminStaff[editingIdx]=worker;
-          if(staffIdx>=0) STAFF[staffIdx]=worker;
-          try{
-            await supa.patch('personal','id=eq.'+dbId, staffToDb(worker));
-            // Invalidate dayData from desdeStr onwards
-            if(scheduleChanged&&desdeStr){
-              Object.keys(dayData).forEach(k=>{ if(k>=desdeStr){ delete dayData[k]; delete dayOrig[k]; delete dayStale[k]; }});
-            }
-          }catch(e){
-            console.error(e);
-            adminStaff[editingIdx]=snapshot.admin;
-            if(staffIdx>=0) STAFF[staffIdx]=snapshot.staff;
-            alert('⚠️ Error al guardar. Comprueba la conexión e inténtalo de nuevo.');
-          }
-          closeWorkerForm();
-          renderAdminList();
-        };
-
-        if(!scheduleChanged){
-          // No schedule change — just save
-          await persistWorker(null);
-          return;
-        }
-
-        // Ask "from which date"
-        const desdeStr=window.prompt('Has cambiado el horario o los d\u00edas de trabajo de '+nombre+'.\n\n\u00bfA partir de qu\u00e9 fecha entra en vigor este cambio?\n(formato YYYY-MM-DD)',todayStr());
-        if(desdeStr===null) return; // cancelled
-        if(!/^\d{4}-\d{2}-\d{2}$/.test(desdeStr)){alert('Fecha no válida');return;}
-
-        const hoy=todayStr();
-        const isPast=desdeStr<hoy;
-        const isInConfirmado=confirmadoHasta&&desdeStr<=confirmadoHasta;
-
-        if(isPast){
-          const ok=window.confirm(
-            '⚠️ La fecha '+desdeStr+' es anterior a hoy.\n\nEsto modificará el pasado. ¿Estás seguro?'
-          );
-          if(!ok) return;
-        } else if(isInConfirmado){
-          const ok=window.confirm(
-            '⚠️ La fecha '+desdeStr+' está dentro del período confirmado (hasta '+confirmadoHasta+').\n\nEstos días ya han sido comunicados a los trabajadores. ¿Estás seguro?'
-          );
-          if(!ok) return;
-        }
-
-        await persistWorker(desdeStr);
-        return;
-      } else {
-        // Insert in DB
-        try{
-          const rows=await supa.post('personal', staffToDb(worker));
-          if(rows&&rows[0]) worker.db_id=rows[0].id;
-          adminStaff.push(worker);STAFF.push(worker);
-        }catch(e){
-          console.error(e);
-          alert('⚠️ Error al guardar. Comprueba la conexión e inténtalo de nuevo. El trabajador no se ha creado.');
-          return;
-        }
+  // Helper to persist worker changes
+  const _persistWorker=async(dbId,desdeStr,scheduleChanged)=>{
+    const staffIdx=STAFF.findIndex(p=>p.db_id===dbId);
+    const snapshot={admin:{...adminStaff[editingIdx]},staff:staffIdx>=0?{...STAFF[staffIdx]}:null};
+    worker.db_id=dbId;
+    adminStaff[editingIdx]=worker;
+    if(staffIdx>=0) STAFF[staffIdx]=worker;
+    try{
+      await supa.patch('personal','id=eq.'+dbId, staffToDb(worker));
+      if(scheduleChanged&&desdeStr){
+        Object.keys(dayData).forEach(k=>{ if(k>=desdeStr){ delete dayData[k]; delete dayOrig[k]; delete dayStale[k]; }});
       }
-      // Update ALIAS lookup
-      ALIAS[worker.id]=worker.alias||worker.nombre;
-      closeWorkerForm();
-      renderAdminList();
+    }catch(e){
+      console.error(e);
+      adminStaff[editingIdx]=snapshot.admin;
+      if(staffIdx>=0) STAFF[staffIdx]=snapshot.staff;
+      alert('⚠️ Error al guardar. Comprueba la conexión e inténtalo de nuevo.');
+      return;
     }
-  );
+    closeWorkerForm();
+    renderAdminList();
+  };
+
+  if(editingIdx!==null){
+    const dbId=adminStaff[editingIdx].db_id;
+    const oldWorker={...adminStaff[editingIdx]};
+    const horChanged=oldWorker.hor!==worker.hor;
+    const diasChanged=JSON.stringify(oldWorker.dias)!==JSON.stringify(worker.dias);
+    const dowChanged=JSON.stringify(oldWorker.horarios_dow||null)!==JSON.stringify(worker.horarios_dow||null);
+    const scheduleChanged=horChanged||diasChanged||dowChanged;
+
+    if(scheduleChanged){
+      // Ask "from which date" — dd/mm/aaaa format
+      const hoy=todayStr();
+      const hoyFmt=hoy.split('-').reverse().join('/');
+      const inputRaw=window.prompt('Has cambiado el horario o los d\u00edas de trabajo de '+nombre+'.\n\n\u00bfA partir de qu\u00e9 fecha entra en vigor este cambio?\n(formato dd/mm/aaaa)',hoyFmt);
+      if(inputRaw===null) return;
+      const parts=inputRaw.trim().split('/');
+      if(parts.length!==3||parts[0].length!==2||parts[1].length!==2||parts[2].length!==4){alert('Fecha no v\u00e1lida. Usa el formato dd/mm/aaaa');return;}
+      const desdeStr=parts[2]+'-'+parts[1]+'-'+parts[0];
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(desdeStr)){alert('Fecha no v\u00e1lida');return;}
+      const isPast=desdeStr<hoy;
+      const isInConfirmado=confirmadoHasta&&desdeStr<=confirmadoHasta;
+      if(isPast){
+        const ok=window.confirm('\u26a0\ufe0f La fecha '+inputRaw+' es anterior a hoy.\n\nEsto modificar\u00e1 el pasado. \u00bfEst\u00e1s seguro?');
+        if(!ok) return;
+      } else if(isInConfirmado){
+        const ok=window.confirm('\u26a0\ufe0f La fecha '+inputRaw+' est\u00e1 dentro del per\u00edodo confirmado (hasta '+confirmadoHasta.split('-').reverse().join('/')+').\n\nEstos d\u00edas ya han sido comunicados a los trabajadores. \u00bfEst\u00e1s seguro?');
+        if(!ok) return;
+      }
+      await _persistWorker(dbId,desdeStr,true);
+      return;
+    }
+    // No schedule change — confirm and save
+    showDlg('Guardar cambios','\u00bfGuardar los cambios de '+nombre+'?',false,async()=>{ await _persistWorker(dbId,null,false); });
+    return;
+  }
+
+  // New worker
+  showDlg('A\u00f1adir trabajador','\u00bfA\u00f1adir a '+nombre+' '+ape+' al equipo?',false,async()=>{
+    try{
+      const rows=await supa.post('personal', staffToDb(worker));
+      if(rows&&rows[0]) worker.db_id=rows[0].id;
+      adminStaff.push(worker);STAFF.push(worker);
+    }catch(e){
+      console.error(e);
+      alert('\u26a0\ufe0f Error al guardar. Comprueba la conexi\u00f3n e int\u00e9ntalo de nuevo. El trabajador no se ha creado.');
+      return;
+    }
+    ALIAS[worker.id]=worker.alias||worker.nombre;
+    closeWorkerForm();
+    renderAdminList();
+  });
 }
 
 async function confirmDeleteWorker(idx){
