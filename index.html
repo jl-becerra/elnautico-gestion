@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v14.6</title>
+<title>El Náutico · Gestión v14.7</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -376,6 +376,8 @@ async function importBackupExcel(input){
           <select id="nom-mes" style="width:100%;padding:7px;border:0.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;background:var(--bg2);color:var(--text)">
             <option value="6">Julio 2026</option>
             <option value="7">Agosto 2026</option>
+            <option value="8">Septiembre 2026</option>
+            <option value="9">Octubre 2026</option>
           </select>
         </div>
         <button class="gen-btn green" onclick="genNominasExcel()">↓ Generar Excel nóminas</button>
@@ -389,6 +391,8 @@ async function importBackupExcel(input){
           <select id="nom-pdf-mes" style="width:100%;padding:7px;border:0.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;background:var(--bg2);color:var(--text)">
             <option value="6">Julio 2026</option>
             <option value="7">Agosto 2026</option>
+            <option value="8">Septiembre 2026</option>
+            <option value="9">Octubre 2026</option>
           </select>
         </div>
         <button class="gen-btn" style="background:#e8890c;color:#fff" onclick="genNominasPDF()">↓ Generar PDF nóminas</button>
@@ -1095,7 +1099,7 @@ function showPage(id){
 }
 async function changeMonth(d){
   const nm=new Date(curMonth);nm.setMonth(nm.getMonth()+d);
-  if(nm.getFullYear()===2026&&(nm.getMonth()===6||nm.getMonth()===7)){
+  if(nm.getFullYear()===2026&&(nm.getMonth()>=6&&nm.getMonth()<=9)){
     curMonth=nm;
     await preloadMonthData(curMonth);
     renderCal();
