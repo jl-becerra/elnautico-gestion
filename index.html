@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El Náutico · Gestión v14.7</title>
+<title>El Náutico · Gestión v14.8</title>
 <style>
 :root{
   --bg:#f5f5f7;--bg2:#ffffff;--bg3:#e8e8ed;
@@ -416,9 +416,14 @@ async function importBackupExcel(input){
         <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Trabajador</label>
         <select id="mih-sel" class="search-inp" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--bg2);color:var(--text)" onchange="mihSelectWorker()"></select>
       </div>
-      <div class="month-tabs" style="padding:0;margin-bottom:12px">
-        <button class="month-tab active" id="mih-tab-jul" onclick="mihSetMonth(6,this)">Julio</button>
-        <button class="month-tab" id="mih-tab-ago" onclick="mihSetMonth(7,this)">Agosto</button>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Mes</label>
+        <select id="mih-month-sel" class="search-inp" style="width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:13px;background:var(--bg2);color:var(--text)" onchange="mihSetMonth(parseInt(this.value))">
+          <option value="6">Julio 2026</option>
+          <option value="7">Agosto 2026</option>
+          <option value="8">Septiembre 2026</option>
+          <option value="9">Octubre 2026</option>
+        </select>
       </div>
       <div id="mih-stats" class="stat-strip" style="margin-bottom:12px"></div>
       <div id="mih-cal"></div>
