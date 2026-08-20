@@ -2944,10 +2944,10 @@ function mihSelectWorker(){
   mihLoadMonth();
 }
 
-function mihSetMonth(m,btn){
+function mihSetMonth(m){
   mihMonth=m;mihSelDay=null;
-  document.querySelectorAll('#page-mih .month-tab').forEach(t=>t.classList.remove('active'));
-  btn.classList.add('active');
+  const sel=document.getElementById('mih-month-sel');
+  if(sel) sel.value=m;
   document.getElementById('mih-day-detail').innerHTML='';
   mihLoadMonth();
 }
